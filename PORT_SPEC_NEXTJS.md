@@ -1479,3 +1479,123 @@ Header: **"Users"** + **"New User"** (`UserPlus`). Display-name resolution order
 ### 10.13 `/users/new` and `/users/[id]`
 
 Max-width `2xl` form. Fields:
+
+1. **Username** _(required)_, autocomplete off
+2. **Password** — new: required, `minlength 8`, hint _"Minimum 8 characters"_. Edit: optional, placeholder _"Leave blank to keep current password"_.
+3. **Email**
+4. **Display Name**
+5. **Administrator** — Switch, hint _"Administrators have full access to all features."_
+6. _(edit only)_ **Active** — Switch, hint _"Disabled users cannot log in."_
+7. **Permissions** — heading + helper text _"Select which resources and actions this user can access. Admins bypass these checks."_ then `<PermissionsGrid>`.
+
+Edit page also has a separator and a destructive outline **"Delete User"** button, confirming _"Are you sure you want to delete this user? This action cannot be undone."_
+
+**`<PermissionsGrid>`**: **Select All** / **Clear All** ghost buttons above a bordered scrollable table. Rows = resources (underscores → spaces, title-cased), columns = the union of all actions across resources, capitalized. A cell holds a checkbox named `perm.{resource}.{action}` when that action applies to that resource, otherwise a dimmed `—`. Checked state comes from the user's current permissions. On submit, collect every `perm.*` form key back into `{resource, action}` pairs (split at the **last** dot, so `tax_definitions` survives).
+
+### 10.14 `/templates`
+
+Header **"Templates"** with subtitle _"Manage invoice HTML templates."_ and **"New Template"** (`FilePlus`). Mobile cards + desktop table with **Name** (link) and **Description** (`"No description"` fallback). Empty: _"No templates found."_
+
+### 10.15 `/settings`
+
+Heading **"Settings"**. Two-column layout `md:grid-cols-[16rem_1fr]`: a left vertical menu (`hidden md:block`) and, on mobile, a full-width `<Select>` that navigates. The active section is driven by `?section=` and each menu entry is a real link.
+
+Sections, in order, with icons: **Company** (`Building2`) · **Branding** (`Palette`) · **Appearance** (`Sun`) · **Formatting** (`Languages`) · **Templates** (`LayoutTemplate`, only when templates exist) · **Payments** (`CreditCard`) · **Tax** (`Percent`) · **Products** (`Package`) · **Numbering** (`Hash`) · **XML Export** (`FileCode`).
+
+When the user lacks `settings:update`, show a warning alert _"You do not have permission to modify settings."_ and disable every input in the panel.
+
+**Company** — `grid sm:grid-cols-2`: Company Name · Currency; then Company Address (textarea); City · Postal Code; Email · Phone; Tax ID · Country Code (placeholder `US`).
+
+**Branding** — **Template** select (option _"Default"_ + installed templates) · **Highlight Color** (a native `type="color"` swatch beside a text input, both bound to the same value) · **Logo URL or Path** (text, hint _Optional_, placeholder `https://… or /uploads/logos/…`, with an inline _"Invalid URL or data format"_ error) plus a file upload that stores the image and writes back its served path, and a live preview.
+
+**Appearance** — the light/dark theme toggle.
+
+**Formatting** — **Date Format** (`YYYY-MM-DD` / `DD.MM.YYYY`) · **Number Format** (`1,000.00` / `1.000,00`) · **Postal/City Format** (_Auto (from country)_ / _Postal Code + City_ / _City + Postal Code_). _(The original's Language select is dropped.)_
+
+**Payments** — checkbox **"Allow editing and deleting sent/paid invoices"**, then textareas: Payment Methods · Bank Account · Payment Terms · Default Notes.
+
+**Tax** — **Tax Label** (text) · **Default Tax Rate** (number, step 0.01) · checkbox **Default Prices Include Tax** · **Rounding Mode** (text/select) · then the **Tax Definitions** manager: heading _"Tax Definitions"_, a list with edit/delete, and an add/edit form with **Tax code** _(required)_ · **Display name** _(required)_ · **Tax Rate (%)** _(required, number, step 0.01, min 0)_ · **Country code** (maxlength 2).
+
+**Products** — two managers side by side. **Product Categories**: table of code/name with edit + delete (deletion blocked when in use — surface the usage count), add form with **Category Code** _(required)_ and **Category Name** _(required)_. **Product Units**: identical, with **Unit Code** / **Unit Name**.
+
+**Numbering** — checkbox **"Enable Automatic Invoice Numbering"** and **Invoice Number Pattern** (text, placeholder `INV-{YYYY}-{SEQ}`). Show the supported token list as help text: `{YYYY} {YY} {MM} {DD} {DATE} {RAND4} {SEQ} {CSEQ} {CNUM}` with one-line explanations (§4.4), plus a live preview of the next number.
+
+**XML Export** — **XML Profile ID** select (`ubl21` — _UBL 2.1 (PEPPOL BIS Billing 3.0)_, `facturx22` — _Factur-X / ZUGFeRD 2.2 (EN 16931)_, `fatturapa` — _FatturaPA (Italian eInvoice)_) · checkboxes **Embed XML in PDF** and **Embed XML in HTML**.
+
+Each panel ends with a primary **Save Settings** button (`Save` icon); success and error alerts render at the top of the page, driven by the `updateSettings` mutation's `isSuccess` / `error`.
+
+### 10.16 `/public/invoices/[token]`
+
+No auth, no navbar. Full-height `bg-muted/40` page.
+
+- Header row (`max-w-5xl`, stacks on mobile): the word **Invoice** in `text-3xl font-light`, and a pill-shaped floating toolbar containing:
+  - an **XML Data** dropdown (`FileText` + chevron) with a _Format_ section header and links **Standard UBL XML**, **UBL 2.1 (PEPPOL)**, **FacturX / ZUGFeRD 2.2**,
+  - a vertical divider,
+  - an **Open in new tab** icon button (`ExternalLink`) → the HTML render route,
+  - a primary rounded **Download PDF** button (`Download`).
+- Body: the rendered invoice inside a bordered, rounded, `min-height: 75vh` container — an `<iframe>` pointed at `/api/public/invoices/{token}/html`, white background, no border.
+
+---
+
+## 11. Invoice rendering (HTML → PDF)
+
+- Templates are HTML documents stored in the `templates` table with `{{token}}` placeholders and an `{{expr || "fallback"}}` default syntax. Ship at least one built-in A4 template (`@page { size: A4; margin: 10mm; }`, Helvetica/Arial, ~12px base, float-based header with a logo box on the left and invoice meta floated right).
+- Escape every interpolated value (`& < > " '`); a separate multiline helper converts `\n` → `<br />`.
+- **Template context** (build this object once and reuse for HTML, PDF and preview):
+  `companyName, companyAddress, companyCity, companyPostalCode, companyPostalCity, companyEmail, companyPhone, companyTaxId, invoiceNumber, issueDate, dueDate, currency, status, customerName, customerContactName, customerEmail, customerPhone, customerAddress, customerCity, customerPostalCode, customerCountryCode, customerPostalCity, customerTaxId, items[{description, quantity, unit, unitPrice, lineTotal, notes}], hasItemUnits, subtotal, discountAmount, discountPercentage, taxRate, taxAmount, total, taxSummary[{label, percent, taxable, amount}], hasTaxSummary, hasDiscount, hasTax, paymentTerms, paymentMethods, bankAccount, notes, highlightColor, highlightColorLight, logo`
+  — all money values pre-formatted as strings. _(The original also passed `locale` and a `labels` object; drop both and hardcode English labels in the template.)_
+- `GET /api/invoices/[id]/html` (auth + `invoices:read`) and `/pdf` (auth + `invoices:export`) render for the owner; `/api/public/invoices/[token]/{html,pdf}` do the same by share token with no auth.
+- PDF: render the HTML route headlessly and print to A4. `embedXmlInPdf` / `embedXmlInHtml` attach the generated e-invoice XML when enabled.
+
+---
+
+## 12. Security headers & env
+
+Set in `next.config.ts` headers or middleware:
+`X-Content-Type-Options: nosniff` · `X-Frame-Options: SAMEORIGIN` · `Referrer-Policy: strict-origin-when-cross-origin` · `Permissions-Policy` denying accelerometer/autoplay/camera/geolocation/gyroscope/magnetometer/microphone/payment/usb · CSP `default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'` · optional HSTS behind HTTPS.
+
+`.env`:
+
+```
+DATABASE_URL=postgres://…
+ADMIN_USER=admin
+ADMIN_PASS=supersecret          # required, non-empty
+JWT_SECRET=change-me            # required, non-empty
+SESSION_TTL_SECONDS=3600        # 300–43200
+COOKIE_SECURE=true
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_MAX_ATTEMPTS=5
+RATE_LIMIT_WINDOW_SECONDS=900
+```
+
+The app must **fail fast at boot** if `ADMIN_USER`, `ADMIN_PASS` or `JWT_SECRET` is missing or blank.
+
+---
+
+## 13. Build order
+
+**Phase 1 — foundation.** Next.js + Tailwind + shadcn init; `next-themes` (light/dark) and the Inter font; `@tanstack/react-query` with the `<QueryProvider>` and `ActionResult`/`unwrap` from §6.1–6.2 in the root layout; the db/ tree from 2.0 (helpers, enums, tables, barrels) + first drizzle-kit migration + seed; auth (login, session cookie, `requireUser`, `hasPermission`, bootstrap admin); app shell (navbar, breadcrumbs, theme toggle) with permission-gated nav.
+
+Wire one page end to end — a list read plus a mutation that invalidates it — before starting Phase 2, so the §6 pattern is settled once instead of per page.
+
+**Phase 2 — core CRUD.** Customers, products, product categories/units, tax definitions — list, detail, create, edit, delete pages plus their server actions. Settings page with the Company, Formatting, Payments and Products sections.
+
+**Phase 3 — invoices.** `money.ts` (§4.2/4.3) and `numbering.ts` (§4.4) with unit tests first, then the invoice editor, list, detail, status transitions, status history, retention protection, share tokens and the public page.
+
+**Phase 4 — rendering.** Template storage, the `{{…}}` renderer, the built-in template, HTML + PDF routes, Branding settings.
+
+**Phase 5 — optional extras.** XML/UBL export and template upload/install. Both are independently skippable; none of Phases 1–4 may depend on them.
+
+**Testing:** at minimum, unit-test `calculateInvoiceTotals`, `calculatePerLineTotals` and `getNextInvoiceNumber` — line vs. total rounding, tax-inclusive vs. exclusive pricing, discount distribution remainders, and each numbering token including the `{CNUM}`-before-`{SEQ}` ordering rule.
+
+---
+
+## 14. UI components
+
+Every screen in §10 is described by what it must show and do, not by which component renders it. Pick the shadcn/ui primitive that fits each case
+
+Two things are not free choices:
+
+- **Reuse over re-implementation.** One shared component per repeated pattern — `<StatusBadge>`, the list-page empty state, the mobile-card/desktop-table list wrapper, the destructive-confirm dialog — rather than a bespoke copy on each page.
+- **Data access is §6, everywhere.** Reads are `useQuery` over a server action, writes are `useMutation` + root invalidation. No `fetch()` in a component, no `useEffect` data loading, no `revalidatePath()` in an action.
+- **The responsive behaviour in §10 is part of the spec.** Keep the mobile-card / desktop-table split on every list page, the progressive column hiding (`hidden sm:table-cell`, `hidden md:table-cell`), and the `sm:flex-row` header stacking, whatever components you build them from.
