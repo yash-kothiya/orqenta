@@ -128,3 +128,24 @@
     @apply font-sans;
   }
 }
+/* ponytail: only eases while .theme-transition is on <html> (set by ThemeToggle),
+   so route changes and hovers keep their own timing. */
+@layer base {
+  .theme-transition,
+  .theme-transition *,
+  .theme-transition *::before,
+  .theme-transition *::after {
+    transition-property: background-color, border-color, color, fill, stroke !important;
+    transition-duration: 500ms !important;
+    transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1) !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .theme-transition,
+    .theme-transition *,
+    .theme-transition *::before,
+    .theme-transition *::after {
+      transition: none !important;
+    }
+  }
+}
