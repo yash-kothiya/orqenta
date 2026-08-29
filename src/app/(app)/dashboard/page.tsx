@@ -84,7 +84,10 @@ export default function DashboardPage() {
       <Card className="gap-0 py-0">
         <div className="flex items-center justify-between px-5 py-4">
           <h2 className="font-semibold">Recent Invoices</h2>
-          <Link href="/invoices" className="text-sm font-medium hover:underline">
+          <Link
+            href="/invoices"
+            className="text-sm font-medium hover:underline"
+          >
             View all
           </Link>
         </div>
@@ -106,7 +109,9 @@ export default function DashboardPage() {
                 <TableCell>{inv.customer}</TableCell>
                 <TableCell>{inv.date}</TableCell>
                 <TableCell>
-                  <Badge variant={inv.status === "Paid" ? "default" : "secondary"}>
+                  <Badge
+                    variant={inv.status === "Paid" ? "default" : "secondary"}
+                  >
                     {inv.status}
                   </Badge>
                 </TableCell>
