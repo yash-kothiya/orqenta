@@ -2,5 +2,13 @@
   "dashboard": {
     "title": "Dashboard | Orqenta",
     "description": "Invoice, customer and revenue overview at a glance."
+  },
+  "invoices": {
+    "title": "Invoices | Orqenta",
+    "description": "Browse, filter and sort every invoice."
+  },
+  "invoiceNew": {
+    "title": "Create Invoice | Orqenta",
+    "description": "Draft a new invoice with line items and tax settings."
   }
 }
