@@ -18,5 +18,13 @@
   "login": {
     "title": "Login | Orqenta",
     "description": "Sign in to your Orqenta workspace."
+  },
+  "products": {
+    "title": "Products | Orqenta",
+    "description": "Browse the product catalogue used on invoices."
+  },
+  "productNew": {
+    "title": "New Product | Orqenta",
+    "description": "Add a product with price, unit, category and default tax."
   }
 }
