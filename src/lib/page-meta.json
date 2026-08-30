@@ -1,6 +1,6 @@
 {
   "landing": {
-    "title": "Orqenta — Invoicing without the busywork",
+    "title": "Orqenta \u00e2\u20ac\u201d Invoicing without the busywork",
     "description": "Draft, send and track invoices, customers, products and tax rules from one workspace."
   },
   "dashboard": {
@@ -14,5 +14,9 @@
   "invoiceNew": {
     "title": "Create Invoice | Orqenta",
     "description": "Draft a new invoice with line items and tax settings."
+  },
+  "login": {
+    "title": "Login | Orqenta",
+    "description": "Sign in to your Orqenta workspace."
   }
 }
