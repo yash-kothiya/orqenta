@@ -5,6 +5,7 @@ import { Plus, Save, X } from "lucide-react";
 import Link from "next/link";
 import * as z from "zod";
 import { DatePicker } from "@/components/date-picker";
+import { type Option, SelectInput } from "@/components/select-input";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -15,13 +16,6 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { formatMoney } from "@/lib/format";
@@ -33,9 +27,6 @@ import {
   PRODUCTS,
   UNITS,
 } from "@/lib/mock-data";
-import { cn } from "@/lib/utils";
-
-type Option = { value: string; label: string };
 
 const STATUS_OPTIONS: Option[] = [
   { value: "draft", label: "Draft" },
@@ -193,55 +184,6 @@ function computeTotals(values: InvoiceValues) {
   }
 
   return { subtotal: net, tax, total: net + tax };
-}
-
-/** One wrapper so every select on the page is the shadcn Select, not a <select>. */
-function SelectInput({
-  id,
-  value,
-  onValueChange,
-  options,
-  placeholder,
-  ariaLabel,
-  className,
-  invalid,
-}: {
-  id?: string;
-  value: string;
-  onValueChange: (value: string) => void;
-  options: Option[];
-  placeholder?: string;
-  ariaLabel?: string;
-  className?: string;
-  invalid?: boolean;
-}) {
-  return (
-    <Select
-      value={value || null}
-      onValueChange={(next) => onValueChange((next as string | null) ?? "")}
-    >
-      <SelectTrigger
-        id={id}
-        aria-label={ariaLabel}
-        aria-invalid={invalid}
-        className={cn("w-full", className)}
-      >
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      {/*
-        SelectContent defaults to w-(--anchor-width), which clips labels longer
-        than a narrow trigger (the item-row selects). Size to content instead,
-        never narrower than the trigger and never wider than the viewport.
-      */}
-      <SelectContent className="w-auto max-w-(--available-width) min-w-(--anchor-width)">
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
 }
 
 /**
