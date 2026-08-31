@@ -102,7 +102,7 @@ export const PRODUCTS: MockProduct[] = [
     taxDefinitionId: "tax_std",
     unitPrice: 1499.5,
     taxPercent: 21,
-    isActive: true,
+    isActive: false,
   },
 ];
 
@@ -201,3 +201,9 @@ export const DEFAULT_SETTINGS = {
   paymentTerms: "Due in 30 days",
   defaultNotes: "Thank you for your business!",
 };
+
+/** §10.10/§10.11 tax option + detail label. */
+export const taxLabel = (t: MockTaxDefinition) =>
+  `${t.name || t.code || `${t.percent}%`} (${t.percent}%)`;
+
+export const findProduct = (id: string) => PRODUCTS.find((p) => p.id === id);

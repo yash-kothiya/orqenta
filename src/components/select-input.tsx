@@ -33,6 +33,8 @@ export function SelectInput({
 }) {
   return (
     <Select
+      // Base UI needs `items` to render the label (not the raw code) in the trigger.
+      items={options}
       value={value || null}
       onValueChange={(next) => onValueChange((next as string | null) ?? "")}
     >
