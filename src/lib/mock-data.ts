@@ -14,6 +14,14 @@ export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 export type MockCustomer = {
   id: string;
   name: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  postalCode: string | null;
+  countryCode: string | null;
+  taxId: string | null;
 };
 
 export type MockProduct = {
@@ -48,10 +56,54 @@ export type MockInvoiceRow = {
 };
 
 export const CUSTOMERS: MockCustomer[] = [
-  { id: "cus_1", name: "Demo Corp" },
-  { id: "cus_2", name: "Casper Holdings" },
-  { id: "cus_3", name: "Northwind Traders" },
-  { id: "cus_4", name: "Vandelay Industries" },
+  {
+    id: "cus_1",
+    name: "Demo Corp",
+    contactName: "Ana Vogel",
+    email: "billing@democorp.example",
+    phone: "+31 20 555 0142",
+    address: "Keizersgracht 118, 2nd floor",
+    city: "Amsterdam",
+    postalCode: "1015 CW",
+    countryCode: "NL",
+    taxId: "NL812345678B01",
+  },
+  {
+    id: "cus_2",
+    name: "Casper Holdings",
+    contactName: "Milo Casper",
+    email: "accounts@casperholdings.example",
+    phone: "+49 30 555 0188",
+    address: "Torstrasse 41",
+    city: "Berlin",
+    postalCode: "10119",
+    countryCode: "DE",
+    taxId: "DE298471553",
+  },
+  {
+    id: "cus_3",
+    name: "Northwind Traders",
+    contactName: null,
+    email: "ap@northwind.example",
+    phone: null,
+    address: "500 Harbor Way",
+    city: "Seattle",
+    postalCode: "98104",
+    countryCode: "US",
+    taxId: null,
+  },
+  {
+    id: "cus_4",
+    name: "Vandelay Industries",
+    contactName: "Art Vandelay",
+    email: null,
+    phone: "+1 212 555 0117",
+    address: null,
+    city: null,
+    postalCode: null,
+    countryCode: null,
+    taxId: null,
+  },
 ];
 
 export const PRODUCTS: MockProduct[] = [
