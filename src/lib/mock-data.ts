@@ -259,3 +259,5 @@ export const taxLabel = (t: MockTaxDefinition) =>
   `${t.name || t.code || `${t.percent}%`} (${t.percent}%)`;
 
 export const findProduct = (id: string) => PRODUCTS.find((p) => p.id === id);
+
+export const findCustomer = (id: string) => CUSTOMERS.find((c) => c.id === id);

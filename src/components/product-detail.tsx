@@ -1,20 +1,10 @@
 "use client";
 
-import { Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Pencil, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { DeleteConfirm, Detail } from "@/components/detail";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -69,36 +59,14 @@ export function ProductDetail({ product }: { product: MockProduct }) {
             </Button>
           )}
 
-          <AlertDialog>
-            <AlertDialogTrigger
-              render={
-                <Button variant="destructive">
-                  <Trash2 className="size-4" />
-                  Delete
-                </Button>
-              }
-            />
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete product</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to delete this product?
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  onClick={() => {
-                    toast.add({ title: `${product.name} deleted` });
-                    router.push("/products");
-                  }}
-                >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <DeleteConfirm
+            title="Delete product"
+            description="Are you sure you want to delete this product?"
+            onConfirm={() => {
+              toast.add({ title: `${product.name} deleted` });
+              router.push("/products");
+            }}
+          />
         </div>
       </div>
 
@@ -114,15 +82,6 @@ export function ProductDetail({ product }: { product: MockProduct }) {
         />
         {tax && <Detail label="Tax Definition" value={taxLabel(tax)} />}
       </Card>
-    </div>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="font-medium whitespace-pre-wrap">{value || "—"}</span>
     </div>
   );
 }

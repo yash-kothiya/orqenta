@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
+import type { MockCustomer } from "@/lib/mock-data";
 
 const customerSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -33,25 +34,27 @@ const customerSchema = z.object({
 
 type CustomerValues = z.infer<typeof customerSchema>;
 
-export function CustomerEditor() {
+export function CustomerEditor({ customer }: { customer?: MockCustomer }) {
+  const editing = customer !== undefined;
+
   const form = useForm({
     defaultValues: {
-      name: "",
-      contactName: "",
-      email: "",
-      phone: "",
-      address: "",
-      city: "",
-      postalCode: "",
-      taxId: "",
-      countryCode: "",
+      name: customer?.name ?? "",
+      contactName: customer?.contactName ?? "",
+      email: customer?.email ?? "",
+      phone: customer?.phone ?? "",
+      address: customer?.address ?? "",
+      city: customer?.city ?? "",
+      postalCode: customer?.postalCode ?? "",
+      taxId: customer?.taxId ?? "",
+      countryCode: customer?.countryCode ?? "",
     } as CustomerValues,
     validators: { onBlur: customerSchema, onSubmit: customerSchema },
     onSubmit: async ({ value }) => {
       // ponytail: no server action yet — §6.3 useMutation replaces this.
       console.log("customer payload", value);
       toast.add({
-        title: "Customer validated",
+        title: editing ? "Customer updated" : "Customer validated",
         description: `${value.name} saved. Payload logged to the console.`,
       });
     },
@@ -90,9 +93,18 @@ export function CustomerEditor() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-semibold">Create Customer</h1>
+        <h1 className="text-2xl font-semibold">
+          {editing ? "Edit Customer" : "Create Customer"}
+        </h1>
         <div className="flex gap-2">
-          <Button variant="outline" render={<Link href="/customers" />}>
+          <Button
+            variant="outline"
+            render={
+              <Link
+                href={customer ? `/customers/${customer.id}` : "/customers"}
+              />
+            }
+          >
             Cancel
           </Button>
           <form.Subscribe selector={(s) => s.isSubmitting}>
@@ -102,7 +114,7 @@ export function CustomerEditor() {
                 form="customer-form"
                 disabled={isSubmitting}
               >
-                Create Customer
+                {editing ? "Save Changes" : "Create Customer"}
               </Button>
             )}
           </form.Subscribe>
