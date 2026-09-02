@@ -14,15 +14,34 @@ export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 export type MockCustomer = {
   id: string;
   name: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  postalCode: string | null;
+  countryCode: string | null;
+  taxId: string | null;
 };
 
 export type MockProduct = {
   id: string;
   name: string;
+  description: string | null;
   sku: string | null;
   unit: string | null;
+  category: string | null;
+  taxDefinitionId: string | null;
   unitPrice: number;
   taxPercent: number;
+  isActive: boolean;
+};
+
+export type MockTaxDefinition = {
+  id: string;
+  code: string;
+  name: string | null;
+  percent: number;
 };
 
 export type MockInvoiceRow = {
@@ -37,48 +56,131 @@ export type MockInvoiceRow = {
 };
 
 export const CUSTOMERS: MockCustomer[] = [
-  { id: "cus_1", name: "Demo Corp" },
-  { id: "cus_2", name: "Casper Holdings" },
-  { id: "cus_3", name: "Northwind Traders" },
-  { id: "cus_4", name: "Vandelay Industries" },
+  {
+    id: "cus_1",
+    name: "Demo Corp",
+    contactName: "Ana Vogel",
+    email: "billing@democorp.example",
+    phone: "+31 20 555 0142",
+    address: "Keizersgracht 118, 2nd floor",
+    city: "Amsterdam",
+    postalCode: "1015 CW",
+    countryCode: "NL",
+    taxId: "NL812345678B01",
+  },
+  {
+    id: "cus_2",
+    name: "Casper Holdings",
+    contactName: "Milo Casper",
+    email: "accounts@casperholdings.example",
+    phone: "+49 30 555 0188",
+    address: "Torstrasse 41",
+    city: "Berlin",
+    postalCode: "10119",
+    countryCode: "DE",
+    taxId: "DE298471553",
+  },
+  {
+    id: "cus_3",
+    name: "Northwind Traders",
+    contactName: null,
+    email: "ap@northwind.example",
+    phone: null,
+    address: "500 Harbor Way",
+    city: "Seattle",
+    postalCode: "98104",
+    countryCode: "US",
+    taxId: null,
+  },
+  {
+    id: "cus_4",
+    name: "Vandelay Industries",
+    contactName: "Art Vandelay",
+    email: null,
+    phone: "+1 212 555 0117",
+    address: null,
+    city: null,
+    postalCode: null,
+    countryCode: null,
+    taxId: null,
+  },
 ];
 
 export const PRODUCTS: MockProduct[] = [
   {
     id: "prod_1",
     name: "Consulting hour",
+    description: "Senior consultant, billed per started hour.",
     sku: "SVC-001",
     unit: "hour",
+    category: "service",
+    taxDefinitionId: "tax_std",
     unitPrice: 120,
     taxPercent: 21,
+    isActive: true,
   },
   {
     id: "prod_2",
     name: "Implementation day",
+    description:
+      "On-site implementation and hand-over, including a written report.",
     sku: "SVC-002",
     unit: "day",
+    category: "service",
+    taxDefinitionId: "tax_std",
     unitPrice: 850,
     taxPercent: 21,
+    isActive: true,
   },
   {
     id: "prod_3",
     name: "Support retainer",
+    description: "Monthly support retainer with a 4-hour response target.",
     sku: "SUB-001",
     unit: "piece",
+    category: "subscription",
+    taxDefinitionId: "tax_low",
     unitPrice: 300,
     taxPercent: 9,
+    isActive: true,
   },
   {
     id: "prod_4",
     name: "Hardware bundle",
+    description: null,
     sku: "GDS-114",
     unit: "piece",
+    category: "goods",
+    taxDefinitionId: "tax_std",
     unitPrice: 1499.5,
     taxPercent: 21,
+    isActive: false,
   },
 ];
 
-export const UNITS = ["piece", "hour", "day", "kg", "m", "lump_sum"];
+export const PRODUCT_CATEGORIES = [
+  { code: "service", name: "Service" },
+  { code: "goods", name: "Goods" },
+  { code: "subscription", name: "Subscription" },
+  { code: "other", name: "Other" },
+];
+
+export const PRODUCT_UNITS = [
+  { code: "piece", name: "Piece" },
+  { code: "hour", name: "Hour" },
+  { code: "day", name: "Day" },
+  { code: "kg", name: "Kilogram" },
+  { code: "m", name: "Meter" },
+  { code: "lump_sum", name: "Lump Sum" },
+];
+
+export const TAX_DEFINITIONS: MockTaxDefinition[] = [
+  { id: "tax_std", code: "STD", name: "Standard rate", percent: 21 },
+  { id: "tax_low", code: "LOW", name: "Reduced rate", percent: 9 },
+  { id: "tax_zero", code: "ZERO", name: null, percent: 0 },
+];
+
+export const UNITS = PRODUCT_UNITS.map((u) => u.code);
 
 export const INVOICES: MockInvoiceRow[] = [
   {
@@ -151,3 +253,11 @@ export const DEFAULT_SETTINGS = {
   paymentTerms: "Due in 30 days",
   defaultNotes: "Thank you for your business!",
 };
+
+/** §10.10/§10.11 tax option + detail label. */
+export const taxLabel = (t: MockTaxDefinition) =>
+  `${t.name || t.code || `${t.percent}%`} (${t.percent}%)`;
+
+export const findProduct = (id: string) => PRODUCTS.find((p) => p.id === id);
+
+export const findCustomer = (id: string) => CUSTOMERS.find((c) => c.id === id);
