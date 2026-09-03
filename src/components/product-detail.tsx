@@ -4,7 +4,7 @@ import { Pencil, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { DeleteConfirm, Detail } from "@/components/detail";
+import { ConfirmDialog, Detail } from "@/components/detail";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -59,7 +59,7 @@ export function ProductDetail({ product }: { product: MockProduct }) {
             </Button>
           )}
 
-          <DeleteConfirm
+          <ConfirmDialog
             title="Delete product"
             description="Are you sure you want to delete this product?"
             onConfirm={() => {
