@@ -502,3 +502,99 @@ export const findProduct = (id: string) => PRODUCTS.find((p) => p.id === id);
 export const findCustomer = (id: string) => CUSTOMERS.find((c) => c.id === id);
 
 export const findInvoice = (id: string) => INVOICES.find((i) => i.id === id);
+
+/** §10.12/§10.13. `passwordHash` never reaches the client, so it isn't here. */
+export type MockUser = {
+  id: string;
+  username: string;
+  email: string | null;
+  displayName: string | null;
+  isAdmin: boolean;
+  isActive: boolean;
+  /** `perm.{resource}.{action}` keys — see lib/permissions. */
+  permissions: string[];
+};
+
+export const USERS: MockUser[] = [
+  {
+    id: "usr_1",
+    username: "admin",
+    email: "admin@orqenta.app",
+    displayName: "Yash Kothiya",
+    isAdmin: true,
+    isActive: true,
+    permissions: [],
+  },
+  {
+    id: "usr_2",
+    username: "maria",
+    email: "maria@demo.corp",
+    displayName: "Maria Lang",
+    isAdmin: false,
+    isActive: true,
+    permissions: [
+      "perm.invoices.read",
+      "perm.invoices.create",
+      "perm.invoices.update",
+      "perm.invoices.publish",
+      "perm.customers.read",
+      "perm.products.read",
+    ],
+  },
+  {
+    id: "usr_3",
+    username: "tom",
+    email: "tom.reed@northwind.test",
+    displayName: null,
+    isAdmin: false,
+    isActive: false,
+    permissions: ["perm.invoices.read", "perm.customers.read"],
+  },
+  {
+    id: "usr_4",
+    username: "kai",
+    email: null,
+    displayName: null,
+    isAdmin: false,
+    isActive: true,
+    permissions: [],
+  },
+];
+
+/**
+ * §10.12 display name. The spec's chain starts with `displayName → name`, but
+ * the §2.14 users table has no `name` column, so it starts one link later.
+ */
+export const userLabel = (u: MockUser) =>
+  u.displayName || u.username || u.email?.split("@")[0] || "Unnamed";
+
+/** §10.14. `html` lives server-side; the list only ever shows these two fields. */
+export type MockTemplate = {
+  id: string;
+  name: string;
+  description: string | null;
+  isDefault: boolean;
+};
+
+export const TEMPLATES: MockTemplate[] = [
+  {
+    id: "tpl_1",
+    name: "Default A4",
+    description: "Built-in A4 layout with a logo box and floated invoice meta.",
+    isDefault: true,
+  },
+  {
+    id: "tpl_2",
+    name: "Minimal",
+    description: null,
+    isDefault: false,
+  },
+  {
+    id: "tpl_3",
+    name: "Letterhead",
+    description: "Company logo band across the top, tax summary in the footer.",
+    isDefault: false,
+  },
+];
+
+export const findUser = (id: string) => USERS.find((u) => u.id === id);
