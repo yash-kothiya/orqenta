@@ -1,6 +1,6 @@
 {
   "landing": {
-    "title": "Orqenta \u00e2\u20ac\u201d Invoicing without the busywork",
+    "title": "Orqenta — Invoicing without the busywork",
     "description": "Draft, send and track invoices, customers, products and tax rules from one workspace."
   },
   "dashboard": {
@@ -34,5 +34,21 @@
   "productNew": {
     "title": "New Product | Orqenta",
     "description": "Add a product with price, unit, category and default tax."
+  },
+  "users": {
+    "title": "Users | Orqenta",
+    "description": "Manage workspace users, roles and permissions."
+  },
+  "userNew": {
+    "title": "New User | Orqenta",
+    "description": "Add a user with a role and per-resource permissions."
+  },
+  "settings": {
+    "title": "Settings | Orqenta",
+    "description": "Company, branding, tax, numbering and export preferences."
+  },
+  "templates": {
+    "title": "Templates | Orqenta",
+    "description": "Manage invoice HTML templates."
   }
 }

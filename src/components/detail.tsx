@@ -30,23 +30,30 @@ export function Detail({
   );
 }
 
-export function DeleteConfirm({
+/** Destructive-confirm dialog; `trigger`/`actionLabel` cover void as well as delete. */
+export function ConfirmDialog({
   title,
   description,
   onConfirm,
+  actionLabel = "Delete",
+  trigger,
 }: {
   title: string;
   description: string;
   onConfirm: () => void;
+  actionLabel?: string;
+  trigger?: React.ReactElement;
 }) {
   return (
     <AlertDialog>
       <AlertDialogTrigger
         render={
-          <Button variant="destructive">
-            <Trash2 className="size-4" />
-            Delete
-          </Button>
+          trigger ?? (
+            <Button variant="destructive">
+              <Trash2 className="size-4" />
+              Delete
+            </Button>
+          )
         }
       />
       <AlertDialogContent>
@@ -57,7 +64,7 @@ export function DeleteConfirm({
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction variant="destructive" onClick={onConfirm}>
-            Delete
+            {actionLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

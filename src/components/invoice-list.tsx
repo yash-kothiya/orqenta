@@ -18,8 +18,9 @@ import { compareText, formatMoney } from "@/lib/format";
 import {
   INVOICES,
   type InvoiceStatus,
-  type MockInvoiceRow,
+  type MockInvoice,
 } from "@/lib/mock-data";
+import { computeTotals } from "@/lib/totals";
 import { cn } from "@/lib/utils";
 
 const FILTERS = [
@@ -53,8 +54,8 @@ const COLUMNS: { key: SortKey; label: string; className?: string }[] = [
   },
 ];
 
-function compareRows(a: MockInvoiceRow, b: MockInvoiceRow, key: SortKey) {
-  if (key === "total") return a.total - b.total;
+function compareRows(a: MockInvoice, b: MockInvoice, key: SortKey) {
+  if (key === "total") return computeTotals(a).total - computeTotals(b).total;
   return compareText(String(a[key]), String(b[key]));
 }
 
@@ -176,7 +177,10 @@ export function InvoiceList() {
                     {invoice.customer}
                   </TableCell>
                   <TableCell className="px-4">
-                    {formatMoney(invoice.total)}
+                    {formatMoney(
+                      computeTotals(invoice).total,
+                      invoice.currency,
+                    )}
                   </TableCell>
                   <TableCell className="px-4">
                     <StatusBadge status={invoice.status} />

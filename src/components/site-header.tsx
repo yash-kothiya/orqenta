@@ -1,10 +1,13 @@
 import {
+  Ellipsis,
   FileText,
   LayoutGrid,
+  LayoutTemplate,
   LogOut,
   Menu,
   Package,
   Settings,
+  UserCog,
   Users,
 } from "lucide-react";
 import Image from "next/image";
@@ -19,14 +22,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const nav = [
+/** §9: three links stay in the bar, the rest move into More once they'd wrap. */
+const primary = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
   { href: "/invoices", label: "Invoices", icon: FileText },
-  { href: "/products", label: "Products", icon: Package },
   { href: "/customers", label: "Customers", icon: Users },
+];
+
+const more = [
+  { href: "/products", label: "Products", icon: Package },
+  { href: "/templates", label: "Templates", icon: LayoutTemplate },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/users", label: "Users", icon: UserCog },
   { href: "/logout", label: "Logout", icon: LogOut },
 ];
+
+/** Mobile flattens both groups into the one hamburger list. */
+const nav = [...primary, ...more];
 
 export function SiteHeader() {
   return (
@@ -59,7 +71,7 @@ export function SiteHeader() {
 
         {/* Desktop: horizontal links, tightened a step before they'd wrap. */}
         <nav className="hidden items-center gap-4 text-sm md:flex lg:gap-6">
-          {nav.map(({ href, label, icon: Icon }) => (
+          {primary.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}
@@ -69,6 +81,27 @@ export function SiteHeader() {
               {label}
             </Link>
           ))}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <button
+                  type="button"
+                  className="flex items-center gap-2 whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
+                />
+              }
+            >
+              <Ellipsis className="size-4" />
+              More
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              {more.map(({ href, label, icon: Icon }) => (
+                <DropdownMenuItem key={href} render={<Link href={href} />}>
+                  <Icon className="size-4" />
+                  {label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <ThemeToggle />
         </nav>
 

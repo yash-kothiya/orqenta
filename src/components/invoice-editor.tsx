@@ -23,10 +23,13 @@ import {
   CUSTOMERS,
   DEFAULT_SETTINGS,
   INVOICE_STATUSES,
+  type MockInvoice,
+  type MockInvoiceItem,
   NEXT_INVOICE_NUMBER,
   PRODUCTS,
   UNITS,
 } from "@/lib/mock-data";
+import { computeTotals } from "@/lib/totals";
 
 const STATUS_OPTIONS: Option[] = [
   { value: "draft", label: "Draft" },
@@ -155,37 +158,6 @@ const emptyItem = (): ItemValues => ({
   notes: "",
 });
 
-const num = (v: string | number) => Number(v) || 0;
-
-/**
- * ponytail: deliberately naive — enough to make the totals move while you review
- * the UI. Replace with the §4.2 / §4.3 algorithms (per-line vs total rounding,
- * discount remainder distribution) when money.ts lands.
- */
-function computeTotals(values: InvoiceValues) {
-  const inclusive = values.pricesIncludeTax === "yes";
-  let net = 0;
-  let tax = 0;
-
-  for (const item of values.items) {
-    const gross = num(item.quantity) * num(item.unitPrice);
-    const rate =
-      (values.taxMode === "line" ? num(item.taxPercent) : num(values.taxRate)) /
-      100;
-
-    if (inclusive) {
-      const lineNet = gross / (1 + rate);
-      net += lineNet;
-      tax += gross - lineNet;
-    } else {
-      net += gross;
-      tax += gross * rate;
-    }
-  }
-
-  return { subtotal: net, tax, total: net + tax };
-}
-
 /**
  * The `lg` column-header strip is hidden on mobile, where the row stacks — so
  * each control grows a visible label there. `aria-hidden` because the control
@@ -210,29 +182,42 @@ function RowField({
   );
 }
 
-export function InvoiceEditor() {
+/** Fixtures hold numbers; the form holds strings so the inputs stay clearable. */
+const itemValues = (item: MockInvoiceItem): ItemValues => ({
+  id: item.id,
+  productId: item.productId ?? "",
+  description: item.description,
+  quantity: String(item.quantity),
+  unit: item.unit ?? "",
+  unitPrice: String(item.unitPrice),
+  taxPercent: String(item.taxPercent),
+  notes: item.notes ?? "",
+});
+
+export function InvoiceEditor({ invoice }: { invoice?: MockInvoice }) {
+  const editing = invoice !== undefined;
   const form = useForm({
     defaultValues: {
-      customerId: "",
-      invoiceNumber: NEXT_INVOICE_NUMBER,
-      currency: DEFAULT_SETTINGS.currency,
-      status: "draft",
-      issueDate: new Date().toISOString().slice(0, 10),
-      dueDate: "",
-      taxMode: "invoice",
-      taxRate: "0",
-      pricesIncludeTax: "no",
-      roundingMode: "line",
-      paymentTerms: DEFAULT_SETTINGS.paymentTerms,
-      notes: DEFAULT_SETTINGS.defaultNotes,
-      items: [emptyItem()],
+      customerId: invoice?.customerId ?? "",
+      invoiceNumber: invoice?.invoiceNumber ?? NEXT_INVOICE_NUMBER,
+      currency: invoice?.currency ?? DEFAULT_SETTINGS.currency,
+      status: invoice?.status ?? "draft",
+      issueDate: invoice?.issueDate ?? new Date().toISOString().slice(0, 10),
+      dueDate: invoice?.dueDate ?? "",
+      taxMode: invoice?.taxMode ?? "invoice",
+      taxRate: String(invoice?.taxRate ?? 0),
+      pricesIncludeTax: invoice?.pricesIncludeTax ? "yes" : "no",
+      roundingMode: invoice?.roundingMode ?? "line",
+      paymentTerms: invoice?.paymentTerms ?? DEFAULT_SETTINGS.paymentTerms,
+      notes: invoice?.notes ?? DEFAULT_SETTINGS.defaultNotes,
+      items: invoice ? invoice.items.map(itemValues) : [emptyItem()],
     } as InvoiceValues,
     validators: { onBlur: invoiceSchema, onSubmit: invoiceSchema },
     onSubmit: async ({ value }) => {
       // ponytail: no server action yet — §6.3 useMutation replaces this.
       console.log("invoice payload", value);
       toast.add({
-        title: "Invoice validated",
+        title: editing ? "Invoice updated" : "Invoice validated",
         description: `${value.items.length} item(s), ${formatMoney(
           computeTotals(value).total,
           value.currency,
@@ -244,9 +229,18 @@ export function InvoiceEditor() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-semibold">Create Invoice</h1>
+        <h1 className="text-2xl font-semibold">
+          {editing
+            ? `Edit Invoice #${invoice.invoiceNumber}`
+            : "Create Invoice"}
+        </h1>
         <div className="flex gap-2">
-          <Button variant="outline" render={<Link href="/invoices" />}>
+          <Button
+            variant="outline"
+            render={
+              <Link href={invoice ? `/invoices/${invoice.id}` : "/invoices"} />
+            }
+          >
             Cancel
           </Button>
           <form.Subscribe selector={(s) => s.isSubmitting}>

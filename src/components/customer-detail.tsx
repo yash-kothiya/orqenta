@@ -3,7 +3,7 @@
 import { Pencil } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { DeleteConfirm, Detail } from "@/components/detail";
+import { ConfirmDialog, Detail } from "@/components/detail";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/components/ui/toast";
@@ -25,7 +25,7 @@ export function CustomerDetail({ customer }: { customer: MockCustomer }) {
             <Pencil className="size-4" />
             Edit
           </Button>
-          <DeleteConfirm
+          <ConfirmDialog
             title="Delete customer"
             description="Are you sure you want to delete this customer? This cannot be undone."
             onConfirm={() => {
