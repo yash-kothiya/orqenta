@@ -43,6 +43,10 @@
     "title": "New User | Orqenta",
     "description": "Add a user with a role and per-resource permissions."
   },
+  "settings": {
+    "title": "Settings | Orqenta",
+    "description": "Company, branding, tax, numbering and export preferences."
+  },
   "templates": {
     "title": "Templates | Orqenta",
     "description": "Manage invoice HTML templates."
