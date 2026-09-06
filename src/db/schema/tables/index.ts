@@ -10,3 +10,6 @@ export * from "./product-units";
 export * from "./products";
 export * from "./settings";
 export * from "./tax-definitions";
+export * from "./templates";
+export * from "./user-permissions";
+export * from "./users";
