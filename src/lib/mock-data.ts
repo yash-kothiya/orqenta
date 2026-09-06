@@ -601,3 +601,7 @@ export const TEMPLATES: MockTemplate[] = [
 ];
 
 export const findUser = (id: string) => USERS.find((u) => u.id === id);
+
+/** §10.16 — the public page is reached by share token, never by id. */
+export const findInvoiceByToken = (token: string) =>
+  INVOICES.find((i) => i.shareToken === token);

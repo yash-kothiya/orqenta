@@ -278,7 +278,9 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={needsServer("The public link")}
+                render={
+                  <Link href={`/public/invoices/${invoice.shareToken}`} />
+                }
               >
                 <ExternalLink className="size-4" />
                 View public link
