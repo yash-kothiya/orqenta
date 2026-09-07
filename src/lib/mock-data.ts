@@ -1,15 +1,9 @@
 // ponytail: UI-only fixtures. Delete this file when the §6 server actions land.
 
-export const INVOICE_STATUSES = [
-  "draft",
-  "sent",
-  "complete",
-  "paid",
-  "overdue",
-  "voided",
-] as const;
+// Re-exported so the fixture consumers keep one import; the list lives in §3.
+export { INVOICE_STATUSES, type InvoiceStatus } from "./types";
 
-export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+import type { InvoiceStatus } from "./types";
 
 export type MockCustomer = {
   id: string;
