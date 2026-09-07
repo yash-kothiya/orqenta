@@ -1,6 +1,7 @@
-// ponytail: deliberately naive — enough to make the totals move while you review
-// the UI. Replace with the §4.2 / §4.3 algorithms (per-line vs total rounding,
-// discount remainder distribution) when money.ts lands.
+// The UI keeps every number as a string and carries one tax percent per row;
+// this adapts that shape onto the §4.2 / §4.3 algorithms in `money.ts`.
+import { calculateInvoiceTotals, calculatePerLineTotals } from "./money";
+import type { RoundingMode, TaxMode } from "./types";
 
 type Numeric = string | number;
 
@@ -11,36 +12,46 @@ export type TotalsInput = {
     unitPrice: Numeric;
     taxPercent: Numeric;
   }[];
-  taxMode: "invoice" | "line";
+  taxMode: TaxMode;
   taxRate: Numeric;
   pricesIncludeTax: boolean | "yes" | "no";
+  roundingMode?: RoundingMode;
   discount?: Numeric;
 };
 
 const num = (v: Numeric) => Number(v) || 0;
 
 export function computeTotals(input: TotalsInput) {
-  const inclusive =
+  const pricesIncludeTax =
     input.pricesIncludeTax === true || input.pricesIncludeTax === "yes";
-  let net = 0;
-  let tax = 0;
+  const discountAmount = num(input.discount ?? 0);
+  const items = input.items.map((i) => ({
+    quantity: num(i.quantity),
+    unitPrice: num(i.unitPrice),
+  }));
 
-  for (const item of input.items) {
-    const gross = num(item.quantity) * num(item.unitPrice);
-    const rate =
-      (input.taxMode === "line" ? num(item.taxPercent) : num(input.taxRate)) /
-      100;
+  const totals =
+    input.taxMode === "line"
+      ? calculatePerLineTotals({
+          items: items.map((item, i) => ({
+            ...item,
+            taxes: [{ percent: num(input.items[i].taxPercent) }],
+          })),
+          discountAmount,
+          pricesIncludeTax,
+        })
+      : calculateInvoiceTotals({
+          items,
+          taxRate: num(input.taxRate),
+          discountAmount,
+          pricesIncludeTax,
+          roundingMode: input.roundingMode ?? "total",
+        });
 
-    if (inclusive) {
-      const lineNet = gross / (1 + rate);
-      net += lineNet;
-      tax += gross - lineNet;
-    } else {
-      net += gross;
-      tax += gross * rate;
-    }
-  }
-
-  const discount = num(input.discount ?? 0);
-  return { subtotal: net, tax, discount, total: net + tax - discount };
+  return {
+    subtotal: totals.subtotal,
+    tax: totals.taxAmount,
+    discount: totals.discountAmount,
+    total: totals.total,
+  };
 }
