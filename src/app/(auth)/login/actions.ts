@@ -2,11 +2,18 @@
 
 import { compare } from "bcryptjs";
 import { eq } from "drizzle-orm";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema/tables";
 import type { ActionResult } from "@/lib/action-result";
 import { ensureBootstrapAdmin } from "@/lib/auth/bootstrap";
+import {
+  attemptKey,
+  clearAttempts,
+  recordFailure,
+  retryAfter,
+} from "@/lib/auth/rate-limit";
 import { createSession, destroySession } from "@/lib/auth/session";
 
 export type Credentials = { username: string; password: string };
@@ -19,6 +26,17 @@ export async function login({
   username,
   password,
 }: Credentials): Promise<ActionResult<null>> {
+  const forwarded = (await headers()).get("x-forwarded-for");
+  const key = attemptKey(username, forwarded?.split(",")[0].trim() || "local");
+
+  const wait = retryAfter(key);
+  if (wait) {
+    return {
+      ok: false,
+      error: `Too many login attempts. Try again in ${Math.ceil(wait / 60)} minute(s).`,
+    };
+  }
+
   await ensureBootstrapAdmin();
 
   const user = await db.query.users.findFirst({
@@ -28,13 +46,16 @@ export async function login({
   // The spec's wording for both cases: an unknown name and a disabled account
   // are the same answer to whoever is asking.
   if (!user || !user.isActive) {
+    recordFailure(key);
     return { ok: false, error: "Account disabled or not found" };
   }
 
   if (!(await compare(password, user.passwordHash))) {
+    recordFailure(key);
     return { ok: false, error: "Invalid username or password" };
   }
 
+  clearAttempts(key);
   await createSession(user.id);
   return { ok: true, data: null };
 }
