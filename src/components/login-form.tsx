@@ -1,10 +1,12 @@
 "use client";
 
 import { useForm } from "@tanstack/react-form";
+import { useMutation } from "@tanstack/react-query";
 import { Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import * as z from "zod";
+import { login } from "@/app/(auth)/login/actions";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +17,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { unwrap } from "@/lib/action-result";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -26,14 +29,24 @@ export function LoginForm() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  const signIn = useMutation({
+    mutationFn: (value: { username: string; password: string }) =>
+      login(value).then(unwrap),
+    onSuccess: () => {
+      // The server-rendered shell reads the session cookie, so this has to be a
+      // fresh render, not a cached one.
+      router.replace("/dashboard");
+      router.refresh();
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
   const form = useForm({
     defaultValues: { username: "", password: "" },
     validators: { onBlur: loginSchema, onSubmit: loginSchema },
     onSubmit: async ({ value }) => {
-      // ponytail: no auth yet — §6.3 useMutation on the login action replaces this.
       setError("");
-      console.log("login payload", value);
-      router.push("/dashboard");
+      await signIn.mutateAsync(value).catch(() => {});
     },
   });
 
