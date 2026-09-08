@@ -178,7 +178,9 @@ export function SiteHeader({ user = null }: { user?: SessionUser | null }) {
 function LogoutItem() {
   return (
     <form action={logout} className="contents">
-      <DropdownMenuItem render={<button type="submit" />}>
+      {/* A button sizes to its content even as a flex item, so it needs w-full
+          to match the plain <div> items around it. */}
+      <DropdownMenuItem className="w-full" render={<button type="submit" />}>
         <LogOut className="size-4" />
         Logout
       </DropdownMenuItem>

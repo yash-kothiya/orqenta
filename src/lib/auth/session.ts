@@ -5,6 +5,7 @@
  * revoking a permission or disabling an account has to take effect immediately,
  * and a JWT cannot be un-issued.
  */
+
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -15,7 +16,7 @@ import type { Action, Resource, SessionUser } from "@/lib/types";
 import { signSession, verifySession } from "./jwt";
 import { assertPermission } from "./permissions";
 
-export const SESSION_COOKIE = "invio_session";
+export const SESSION_COOKIE = "orqenta_session";
 
 export async function createSession(userId: string) {
   const store = await cookies();
