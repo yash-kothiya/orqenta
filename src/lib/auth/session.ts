@@ -11,8 +11,9 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema/tables";
 import { env } from "@/lib/env";
-import type { SessionUser } from "@/lib/types";
+import type { Action, Resource, SessionUser } from "@/lib/types";
 import { signSession, verifySession } from "./jwt";
+import { assertPermission } from "./permissions";
 
 export const SESSION_COOKIE = "invio_session";
 
@@ -67,5 +68,15 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 export async function requireUser(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  return user;
+}
+
+/** The two lines every server action starts with (§6.1). */
+export async function requirePermission(
+  resource: Resource,
+  action: Action,
+): Promise<SessionUser> {
+  const user = await requireUser();
+  assertPermission(user, resource, action);
   return user;
 }

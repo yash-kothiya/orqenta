@@ -555,9 +555,6 @@ export const USERS: MockUser[] = [
   },
 ];
 
-/** ponytail: stands in for the §5 session user until auth lands. */
-export const CURRENT_USER = USERS[0];
-
 /**
  * §10.12 display name. The spec's chain starts with `displayName → name`, but
  * the §2.14 users table has no `name` column, so it starts one link later.

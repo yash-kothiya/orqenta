@@ -2,6 +2,7 @@
 
 import { compare } from "bcryptjs";
 import { eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema/tables";
 import type { ActionResult } from "@/lib/action-result";
@@ -38,7 +39,11 @@ export async function login({
   return { ok: true, data: null };
 }
 
-export async function logout(): Promise<ActionResult<null>> {
+/**
+ * Shaped for `<form action={logout}>` rather than as an ActionResult: there is
+ * nothing to report, and the header needs the redirect to drop the cached shell.
+ */
+export async function logout() {
   await destroySession();
-  return { ok: true, data: null };
+  redirect("/login");
 }
