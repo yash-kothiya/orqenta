@@ -10,6 +10,11 @@ import {
   Percent,
   Sun,
 } from "lucide-react";
+import {
+  expandVolatileTokens,
+  legacyPrefix,
+  sequencePadding,
+} from "./numbering";
 
 /** §7 keys the §10.15 panels render, with their spec defaults. */
 export const SETTING_DEFAULTS = {
@@ -117,27 +122,10 @@ export const NUMBER_TOKENS = [
 export function previewInvoiceNumber(s: Settings) {
   if (!s.invoiceNumberingEnabled) return "DRAFT-7KQM2X";
 
-  const now = new Date();
-  const yyyy = String(now.getFullYear());
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
   const pattern = s.invoiceNumberPattern.trim();
+  if (!pattern) return legacyPrefix(s) + "1".padStart(sequencePadding(s), "0");
 
-  if (!pattern) {
-    const base = s.invoiceIncludeYear
-      ? `${s.invoicePrefix}-${yyyy}-`
-      : `${s.invoicePrefix}-`;
-    const pad = Math.min(8, Math.max(2, Number(s.invoiceNumberPadding) || 3));
-    return base + "1".padStart(pad, "0");
-  }
-
-  return pattern
-    .replaceAll("{YYYY}", yyyy)
-    .replaceAll("{YY}", yyyy.slice(2))
-    .replaceAll("{MM}", mm)
-    .replaceAll("{DD}", dd)
-    .replaceAll("{DATE}", `${yyyy}${mm}${dd}`)
-    .replaceAll("{RAND4}", "K7QM")
+  return expandVolatileTokens(pattern, new Date(), "K7QM")
     .replaceAll("{SEQ}", "001")
     .replaceAll("{CSEQ}", "001")
     .replaceAll("{CNUM}", "007");

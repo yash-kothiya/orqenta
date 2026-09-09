@@ -1,0 +1,70 @@
+"use server";
+
+import { compare } from "bcryptjs";
+import { eq } from "drizzle-orm";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { db } from "@/db";
+import { users } from "@/db/schema/tables";
+import type { ActionResult } from "@/lib/action-result";
+import { ensureBootstrapAdmin } from "@/lib/auth/bootstrap";
+import {
+  attemptKey,
+  clearAttempts,
+  recordFailure,
+  retryAfter,
+} from "@/lib/auth/rate-limit";
+import { createSession, destroySession } from "@/lib/auth/session";
+
+export type Credentials = { username: string; password: string };
+
+/**
+ * §5 login. Returns its failures rather than throwing them, so the form can
+ * show the message Next would otherwise replace in production.
+ */
+export async function login({
+  username,
+  password,
+}: Credentials): Promise<ActionResult<null>> {
+  const forwarded = (await headers()).get("x-forwarded-for");
+  const key = attemptKey(username, forwarded?.split(",")[0].trim() || "local");
+
+  const wait = retryAfter(key);
+  if (wait) {
+    return {
+      ok: false,
+      error: `Too many login attempts. Try again in ${Math.ceil(wait / 60)} minute(s).`,
+    };
+  }
+
+  await ensureBootstrapAdmin();
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.username, username.trim()),
+  });
+
+  // The spec's wording for both cases: an unknown name and a disabled account
+  // are the same answer to whoever is asking.
+  if (!user || !user.isActive) {
+    recordFailure(key);
+    return { ok: false, error: "Account disabled or not found" };
+  }
+
+  if (!(await compare(password, user.passwordHash))) {
+    recordFailure(key);
+    return { ok: false, error: "Invalid username or password" };
+  }
+
+  clearAttempts(key);
+  await createSession(user.id);
+  return { ok: true, data: null };
+}
+
+/**
+ * Shaped for `<form action={logout}>` rather than as an ActionResult: there is
+ * nothing to report, and the header needs the redirect to drop the cached shell.
+ */
+export async function logout() {
+  await destroySession();
+  redirect("/login");
+}

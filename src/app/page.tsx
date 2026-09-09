@@ -1,9 +1,9 @@
-import { ArrowRight } from "lucide-react";
-import Link from "next/link";
 import { FlipWords } from "@/components/flip-words";
 import { Button } from "@/components/ui/button";
 import { ShaderBackground } from "@/components/ui/shader-background";
 import pageMeta from "@/lib/page-meta.json";
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 export const metadata = pageMeta.landing;
 
@@ -31,9 +31,9 @@ export default function LandingPage() {
         </h1>
 
         <p className="max-w-2xl text-pretty text-lg text-muted-foreground sm:text-xl">
-          Draft, send and track invoices from one place. Customers, products,
-          tax rules and payment status - all in a single workspace your team
-          actually wants to open.
+          Draft, send and track invoices from one place. <br />
+          Customers, products, tax rules and payment status <br />- all in a
+          single workspace your team actually wants to open.
         </p>
 
         <Button size="lg" render={<Link href="/login" />}>

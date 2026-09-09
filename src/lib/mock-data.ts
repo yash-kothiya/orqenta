@@ -1,15 +1,9 @@
 // ponytail: UI-only fixtures. Delete this file when the §6 server actions land.
 
-export const INVOICE_STATUSES = [
-  "draft",
-  "sent",
-  "complete",
-  "paid",
-  "overdue",
-  "voided",
-] as const;
+// Re-exported so the fixture consumers keep one import; the list lives in §3.
+export { INVOICE_STATUSES, type InvoiceStatus } from "./types";
 
-export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+import type { InvoiceStatus } from "./types";
 
 export type MockCustomer = {
   id: string;
@@ -561,9 +555,6 @@ export const USERS: MockUser[] = [
   },
 ];
 
-/** ponytail: stands in for the §5 session user until auth lands. */
-export const CURRENT_USER = USERS[0];
-
 /**
  * §10.12 display name. The spec's chain starts with `displayName → name`, but
  * the §2.14 users table has no `name` column, so it starts one link later.
@@ -601,3 +592,7 @@ export const TEMPLATES: MockTemplate[] = [
 ];
 
 export const findUser = (id: string) => USERS.find((u) => u.id === id);
+
+/** §10.16 — the public page is reached by share token, never by id. */
+export const findInvoiceByToken = (token: string) =>
+  INVOICES.find((i) => i.shareToken === token);

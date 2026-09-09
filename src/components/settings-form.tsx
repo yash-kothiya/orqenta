@@ -24,14 +24,12 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  CURRENT_USER,
   PRODUCT_CATEGORIES,
   PRODUCT_UNITS,
   PRODUCTS,
   TAX_DEFINITIONS,
   TEMPLATES,
 } from "@/lib/mock-data";
-import { permKey } from "@/lib/permissions";
 import {
   type BoolKey,
   DATE_FORMATS,
@@ -54,7 +52,8 @@ const LOGO_RE = /^(https?:\/\/|\/|data:image\/)/;
 const toRows = (items: { code: string; name: string }[]): ManagedRow[] =>
   items.map((i) => ({ id: i.code, code: i.code, name: i.name }));
 
-export function SettingsForm() {
+/** `canEdit` is settings:update, resolved from the session by the page (§10.15). */
+export function SettingsForm({ canEdit }: { canEdit: boolean }) {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -78,10 +77,6 @@ export function SettingsForm() {
       countryCode: "",
     })),
   );
-
-  const canEdit =
-    CURRENT_USER.isAdmin ||
-    CURRENT_USER.permissions.includes(permKey("settings", "update"));
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     setValues((v) => ({ ...v, [key]: value }));
