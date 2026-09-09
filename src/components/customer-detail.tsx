@@ -1,17 +1,32 @@
 "use client";
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { deleteCustomer } from "@/app/(app)/customers/actions";
 import { ConfirmDialog, Detail } from "@/components/detail";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/components/ui/toast";
+import { unwrap } from "@/lib/action-result";
 import { formatPostalCityLine } from "@/lib/format";
-import type { MockCustomer } from "@/lib/mock-data";
+import { invalidate } from "@/lib/query-invalidation";
+import type { Customer } from "@/lib/types";
 
-export function CustomerDetail({ customer }: { customer: MockCustomer }) {
+export function CustomerDetail({ customer }: { customer: Customer }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const remove = useMutation({
+    mutationFn: () => deleteCustomer(customer.id).then(unwrap),
+    onSuccess: async () => {
+      await invalidate(queryClient, "customers");
+      toast.add({ title: `${customer.name} deleted` });
+      router.push("/customers");
+    },
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -28,14 +43,16 @@ export function CustomerDetail({ customer }: { customer: MockCustomer }) {
           <ConfirmDialog
             title="Delete customer"
             description="Are you sure you want to delete this customer? This cannot be undone."
-            onConfirm={() => {
-              // ponytail: no mutation yet — §6.3 replaces this with the delete action.
-              toast.add({ title: `${customer.name} deleted` });
-              router.push("/customers");
-            }}
+            onConfirm={() => remove.mutate()}
           />
         </div>
       </div>
+
+      {remove.error && (
+        <Alert variant="destructive">
+          <AlertTitle>{remove.error.message}</AlertTitle>
+        </Alert>
+      )}
 
       <Card className="grid gap-4 p-6 sm:grid-cols-2">
         <Detail label="Name" value={customer.name} />

@@ -1,8 +1,16 @@
 "use client";
 
 import { useForm } from "@tanstack/react-form";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as z from "zod";
+import {
+  type CustomerInput,
+  createCustomer,
+  updateCustomer,
+} from "@/app/(app)/customers/actions";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -11,9 +19,12 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import type { MockCustomer } from "@/lib/mock-data";
+import { unwrap } from "@/lib/action-result";
+import { invalidate } from "@/lib/query-invalidation";
+import type { Customer } from "@/lib/types";
 
 const customerSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -34,8 +45,23 @@ const customerSchema = z.object({
 
 type CustomerValues = z.infer<typeof customerSchema>;
 
-export function CustomerEditor({ customer }: { customer?: MockCustomer }) {
+export function CustomerEditor({ customer }: { customer?: Customer }) {
   const editing = customer !== undefined;
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const save = useMutation({
+    mutationFn: (values: CustomerInput) =>
+      (customer
+        ? updateCustomer(customer.id, values)
+        : createCustomer(values)
+      ).then(unwrap),
+    onSuccess: async (saved) => {
+      await invalidate(queryClient, "customers");
+      toast.add({ title: editing ? "Customer updated" : "Customer created" });
+      router.push(`/customers/${saved.id}`);
+    },
+  });
 
   const form = useForm({
     defaultValues: {
@@ -51,12 +77,7 @@ export function CustomerEditor({ customer }: { customer?: MockCustomer }) {
     } as CustomerValues,
     validators: { onBlur: customerSchema, onSubmit: customerSchema },
     onSubmit: async ({ value }) => {
-      // ponytail: no server action yet — §6.3 useMutation replaces this.
-      console.log("customer payload", value);
-      toast.add({
-        title: editing ? "Customer updated" : "Customer validated",
-        description: `${value.name} saved. Payload logged to the console.`,
-      });
+      await save.mutateAsync(value).catch(() => {});
     },
   });
 
@@ -107,17 +128,10 @@ export function CustomerEditor({ customer }: { customer?: MockCustomer }) {
           >
             Cancel
           </Button>
-          <form.Subscribe selector={(s) => s.isSubmitting}>
-            {(isSubmitting) => (
-              <Button
-                type="submit"
-                form="customer-form"
-                disabled={isSubmitting}
-              >
-                {editing ? "Save Changes" : "Create Customer"}
-              </Button>
-            )}
-          </form.Subscribe>
+          <Button type="submit" form="customer-form" disabled={save.isPending}>
+            {save.isPending && <Spinner />}
+            {editing ? "Save Changes" : "Create Customer"}
+          </Button>
         </div>
       </div>
 
@@ -129,6 +143,12 @@ export function CustomerEditor({ customer }: { customer?: MockCustomer }) {
         }}
       >
         <FieldGroup>
+          {save.error && (
+            <Alert variant="destructive">
+              <AlertTitle>{save.error.message}</AlertTitle>
+            </Alert>
+          )}
+
           {textField("name", "Name *", "e.g. Demo Corp")}
           {textField(
             "contactName",
