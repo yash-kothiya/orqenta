@@ -1,10 +1,21 @@
 "use client";
 
 import { useForm } from "@tanstack/react-form";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Save } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as z from "zod";
+import {
+  createProduct,
+  listProductCategories,
+  listProductUnits,
+  type ProductInput,
+  updateProduct,
+} from "@/app/(app)/products/actions";
+import { listTaxDefinitions } from "@/app/(app)/settings/actions";
 import { type Option, SelectInput } from "@/components/select-input";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -16,31 +27,17 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import {
-  type MockProduct,
-  PRODUCT_CATEGORIES,
-  PRODUCT_UNITS,
-  TAX_DEFINITIONS,
-  taxLabel,
-} from "@/lib/mock-data";
+import { unwrap } from "@/lib/action-result";
+import { taxDefinitionLabel } from "@/lib/format";
+import { invalidate } from "@/lib/query-invalidation";
+import type { Product } from "@/lib/types";
 
-const UNIT_OPTIONS: Option[] = PRODUCT_UNITS.map((u) => ({
-  value: u.code,
-  label: u.name,
-}));
-
-const CATEGORY_OPTIONS: Option[] = PRODUCT_CATEGORIES.map((c) => ({
-  value: c.code,
-  label: c.name,
-}));
-
-const TAX_OPTIONS: Option[] = TAX_DEFINITIONS.map((t) => ({
-  value: t.id,
-  label: taxLabel(t),
-}));
+const codeOptions = (rows: { code: string; name: string }[]): Option[] =>
+  rows.map((row) => ({ value: row.code, label: row.name }));
 
 /** Unit price stays a string so the field is freely typeable (and clearable). */
 const productSchema = z.object({
@@ -60,8 +57,43 @@ const productSchema = z.object({
 
 type ProductValues = z.infer<typeof productSchema>;
 
-export function ProductEditor({ product }: { product?: MockProduct }) {
+export function ProductEditor({ product }: { product?: Product }) {
   const editing = product !== undefined;
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const { data: units = [] } = useQuery({
+    queryKey: ["product_units", "list"],
+    queryFn: () => listProductUnits().then(unwrap),
+  });
+  const { data: categories = [] } = useQuery({
+    queryKey: ["product_categories", "list"],
+    queryFn: () => listProductCategories().then(unwrap),
+  });
+  const { data: taxes = [] } = useQuery({
+    queryKey: ["tax_definitions", "list"],
+    queryFn: () => listTaxDefinitions().then(unwrap),
+  });
+
+  const UNIT_OPTIONS = codeOptions(units);
+  const CATEGORY_OPTIONS = codeOptions(categories);
+  const TAX_OPTIONS: Option[] = taxes.map((tax) => ({
+    value: tax.id,
+    label: taxDefinitionLabel(tax),
+  }));
+
+  const save = useMutation({
+    mutationFn: (values: ProductInput) =>
+      (product
+        ? updateProduct(product.id, values)
+        : createProduct(values)
+      ).then(unwrap),
+    onSuccess: async (saved) => {
+      await invalidate(queryClient, "products");
+      toast.add({ title: editing ? "Product updated" : "Product created" });
+      router.push(`/products/${saved.id}`);
+    },
+  });
 
   const form = useForm({
     defaultValues: {
@@ -76,12 +108,7 @@ export function ProductEditor({ product }: { product?: MockProduct }) {
     } as ProductValues,
     validators: { onBlur: productSchema, onSubmit: productSchema },
     onSubmit: async ({ value }) => {
-      // ponytail: no server action yet — §6.3 useMutation replaces this.
-      console.log("product payload", value);
-      toast.add({
-        title: editing ? "Product updated" : "Product validated",
-        description: `${value.name} saved. Payload logged to the console.`,
-      });
+      await save.mutateAsync(value).catch(() => {});
     },
   });
 
@@ -100,14 +127,10 @@ export function ProductEditor({ product }: { product?: MockProduct }) {
           >
             Cancel
           </Button>
-          <form.Subscribe selector={(s) => s.isSubmitting}>
-            {(isSubmitting) => (
-              <Button type="submit" form="product-form" disabled={isSubmitting}>
-                <Save className="size-4" />
-                Save
-              </Button>
-            )}
-          </form.Subscribe>
+          <Button type="submit" form="product-form" disabled={save.isPending}>
+            {save.isPending ? <Spinner /> : <Save className="size-4" />}
+            Save
+          </Button>
         </div>
       </div>
 
@@ -119,6 +142,12 @@ export function ProductEditor({ product }: { product?: MockProduct }) {
         }}
       >
         <FieldGroup>
+          {save.error && (
+            <Alert variant="destructive">
+              <AlertTitle>{save.error.message}</AlertTitle>
+            </Alert>
+          )}
+
           {editing && (
             <form.Field name="isActive">
               {(field) => (

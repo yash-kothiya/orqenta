@@ -1,10 +1,11 @@
 // ponytail: §7 dateFormat/numberFormat settings aren't wired yet — this is the
 // plain en-US default. Read them from settings when that page exists.
-export function formatMoney(amount: number, currency = "EUR") {
+/** Accepts a string too: drizzle hands `numeric` columns back as strings. */
+export function formatMoney(amount: number | string, currency = "EUR") {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
-  }).format(amount);
+  }).format(Number(amount));
 }
 
 export function compareText(a: string, b: string) {
@@ -26,3 +27,10 @@ export function formatPostalCityLine(
     ? `${place} ${postal}`
     : `${postal} ${place}`;
 }
+
+/** §10.10 / §10.11 — the option and detail label for a tax definition. */
+export const taxDefinitionLabel = (tax: {
+  code: string | null;
+  name: string | null;
+  percent: string;
+}) => `${tax.name || tax.code || `${tax.percent}%`} (${tax.percent}%)`;
