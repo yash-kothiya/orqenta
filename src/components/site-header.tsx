@@ -3,7 +3,6 @@ import {
   FileText,
   LayoutGrid,
   LayoutTemplate,
-  LogOut,
   Menu,
   Package,
   Settings,
@@ -12,7 +11,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { logout } from "@/app/(auth)/login/actions";
+import { LogoutItem } from "@/components/logout-item";
 import { ThemeToggle, ThemeToggleMenuItem } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -171,19 +170,5 @@ export function SiteHeader({ user = null }: { user?: SessionUser | null }) {
         </div>
       </div>
     </header>
-  );
-}
-
-/** A form, not a link: signing out is a write, and GET would let an <img> do it. */
-function LogoutItem() {
-  return (
-    <form action={logout} className="contents">
-      {/* A button sizes to its content even as a flex item, so it needs w-full
-          to match the plain <div> items around it. */}
-      <DropdownMenuItem className="w-full" render={<button type="submit" />}>
-        <LogOut className="size-4" />
-        Logout
-      </DropdownMenuItem>
-    </form>
   );
 }
