@@ -1,15 +1,17 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleCheck, Save, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getSettings, updateSettings } from "@/app/(app)/settings/actions";
 import { ColorPicker } from "@/components/color-picker";
 import { ItemManager, type ManagedRow } from "@/components/item-manager";
 import { type Option, SelectInput } from "@/components/select-input";
 import { TemplateList } from "@/components/template-list";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -22,7 +24,9 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { unwrap } from "@/lib/action-result";
 import {
   PRODUCT_CATEGORIES,
   PRODUCT_UNITS,
@@ -30,6 +34,7 @@ import {
   TAX_DEFINITIONS,
   TEMPLATES,
 } from "@/lib/mock-data";
+import { invalidate } from "@/lib/query-invalidation";
 import {
   type BoolKey,
   DATE_FORMATS,
@@ -56,6 +61,7 @@ const toRows = (items: { code: string; name: string }[]): ManagedRow[] =>
 export function SettingsForm({ canEdit }: { canEdit: boolean }) {
   const router = useRouter();
   const params = useSearchParams();
+  const queryClient = useQueryClient();
 
   // §10.15: the Templates entry only appears once templates exist.
   const sections = SECTIONS.filter(
@@ -66,6 +72,27 @@ export function SettingsForm({ canEdit }: { canEdit: boolean }) {
 
   const [values, setValues] = useState<Settings>(SETTING_DEFAULTS);
   const [saved, setSaved] = useState(false);
+
+  const { data: stored } = useQuery({
+    queryKey: ["settings", "all"],
+    queryFn: () => getSettings().then(unwrap),
+  });
+
+  // The panel is an uncontrolled draft, so the server copy seeds it once it
+  // arrives rather than fighting whatever is being typed.
+  useEffect(() => {
+    if (stored) setValues(stored);
+  }, [stored]);
+
+  const save = useMutation({
+    mutationFn: (next: Settings) => updateSettings(next).then(unwrap),
+    onSuccess: async (fresh) => {
+      setValues(fresh);
+      setSaved(true);
+      // A templateId change moves templates.is_default too (§6.3).
+      await invalidate(queryClient, "settings", "templates");
+    },
+  });
   const [categories, setCategories] = useState(toRows(PRODUCT_CATEGORIES));
   const [units, setUnits] = useState(toRows(PRODUCT_UNITS));
   const [taxDefs, setTaxDefs] = useState<ManagedRow[]>(
@@ -404,13 +431,16 @@ export function SettingsForm({ canEdit }: { canEdit: boolean }) {
         </Alert>
       )}
 
-      {saved && (
+      {save.error && (
+        <Alert variant="destructive">
+          <AlertTitle>{save.error.message}</AlertTitle>
+        </Alert>
+      )}
+
+      {saved && !save.isPending && (
         <Alert>
           <CircleCheck />
           <AlertTitle>Settings saved</AlertTitle>
-          <AlertDescription>
-            Mock only — the payload was logged to the console.
-          </AlertDescription>
         </Alert>
       )}
 
@@ -448,13 +478,10 @@ export function SettingsForm({ canEdit }: { canEdit: boolean }) {
           {panel()}
           <div>
             <Button
-              onClick={() => {
-                // ponytail: no server action yet — §6 updateSettings replaces this.
-                console.log("settings payload", values);
-                setSaved(true);
-              }}
+              disabled={save.isPending}
+              onClick={() => save.mutate(values)}
             >
-              <Save className="size-4" />
+              {save.isPending ? <Spinner /> : <Save className="size-4" />}
               Save Settings
             </Button>
           </div>
