@@ -27,20 +27,30 @@ export type ManagedField = {
 /**
  * §10.15's tax-definition, category and unit managers — the same
  * table + add/edit form three times over, so it is one component.
+ *
+ * Each edit is one call rather than a replacement array: the rows are server
+ * rows now, and handing back a whole list would mean diffing it to work out
+ * which action to run.
  */
 export function ItemManager({
   title,
   fields,
   rows,
-  onChange,
+  onCreate,
+  onUpdate,
+  onDelete,
   usage,
+  busy = false,
 }: {
   title: string;
   fields: ManagedField[];
   rows: ManagedRow[];
-  onChange: (rows: ManagedRow[]) => void;
+  onCreate: (values: Record<string, string>) => void;
+  onUpdate: (id: string, values: Record<string, string>) => void;
+  onDelete: (id: string) => void;
   /** Rows in use cannot be deleted; the count is shown instead (§10.15). */
   usage?: (row: ManagedRow) => number;
+  busy?: boolean;
 }) {
   const blank = Object.fromEntries(fields.map((f) => [f.key, ""]));
   const [draft, setDraft] = useState<Record<string, string>>(blank);
@@ -55,11 +65,8 @@ export function ItemManager({
 
   const submit = () => {
     if (incomplete) return;
-    onChange(
-      editingId
-        ? rows.map((r) => (r.id === editingId ? { ...r, ...draft } : r))
-        : [...rows, { ...draft, id: crypto.randomUUID() }],
-    );
+    if (editingId) onUpdate(editingId, draft);
+    else onCreate(draft);
     reset();
   };
 
@@ -112,9 +119,7 @@ export function ItemManager({
                         <ConfirmDialog
                           title={`Delete ${row[fields[0].key]}`}
                           description="Are you sure? This action cannot be undone."
-                          onConfirm={() =>
-                            onChange(rows.filter((r) => r.id !== row.id))
-                          }
+                          onConfirm={() => onDelete(row.id)}
                           trigger={
                             <Button
                               variant="ghost"
@@ -153,7 +158,11 @@ export function ItemManager({
       </div>
 
       <div className="flex gap-2">
-        <Button variant="outline" onClick={submit} disabled={incomplete}>
+        <Button
+          variant="outline"
+          onClick={submit}
+          disabled={incomplete || busy}
+        >
           {editingId ? (
             <Save className="size-4" />
           ) : (
