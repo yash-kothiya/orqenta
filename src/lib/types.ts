@@ -94,11 +94,13 @@ export type InvoiceWithDetails = Invoice & {
   paidWith?: string | null;
 };
 
-/** One row of `listInvoices`: joined customer, derived status, derived total. */
+/**
+ * One row of `listInvoices`. `status` is already derived (§4.5) and the money
+ * columns stay the strings drizzle returns for `numeric`.
+ */
 export type InvoiceListRow = Invoice & {
   customer: Pick<Customer, "id" | "name"> | null;
   paidWith?: string | null;
-  total: number;
 };
 
 export interface SessionUser {
