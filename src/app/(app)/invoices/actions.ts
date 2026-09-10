@@ -32,6 +32,7 @@ import {
 } from "@/lib/numbering";
 import { rowsToSettings } from "@/lib/settings";
 import {
+  type Action,
   INVOICE_STATUSES,
   type Invoice,
   type InvoiceListRow,
@@ -434,6 +435,200 @@ export async function deleteInvoice(id: string): Promise<ActionResult<null>> {
     // Items, taxes, history and attachments all cascade from here.
     await db.delete(invoices).where(eq(invoices.id, id));
     return null;
+  });
+}
+
+/**
+ * §4.5 — one status write: the column and an appended history row, together.
+ * Every transition below funnels through here so the audit trail cannot be
+ * skipped by adding a new action later.
+ */
+async function transition(
+  id: string,
+  next: InvoiceStatus,
+  options: {
+    permission: Action;
+    note: string;
+    paymentMethod?: string | null;
+    from?: readonly InvoiceStatus[];
+  },
+): Promise<Invoice> {
+  await requirePermission("invoices", options.permission);
+
+  const current = await db.query.invoices.findFirst({
+    where: eq(invoices.id, id),
+  });
+  if (!current) throw new ActionError("Invoice not found");
+
+  // Guards are stated against the derived status, since that is the one the
+  // page showed the person who clicked (§4.5).
+  const status = deriveStatus(current.status, current.dueDate);
+  if (options.from && !options.from.includes(status)) {
+    throw new ActionError(`A ${status} invoice cannot become ${next}.`);
+  }
+
+  return db.transaction(async (tx) => {
+    const [invoice] = await tx
+      .update(invoices)
+      .set({ status: next })
+      .where(eq(invoices.id, id))
+      .returning();
+
+    await tx.insert(invoiceStatusHistory).values({
+      invoiceId: id,
+      status: next,
+      paymentMethod: options.paymentMethod ?? null,
+      note: options.note,
+    });
+
+    return invoice;
+  });
+}
+
+export async function publishInvoice(
+  id: string,
+): Promise<ActionResult<Invoice>> {
+  return runAction(() =>
+    transition(id, "sent", {
+      permission: "publish",
+      note: "Published",
+      from: ["draft"],
+    }),
+  );
+}
+
+export async function unpublishInvoice(
+  id: string,
+): Promise<ActionResult<Invoice>> {
+  return runAction(() =>
+    transition(id, "draft", {
+      permission: "publish",
+      note: "Unpublished",
+      from: ["sent", "overdue"],
+    }),
+  );
+}
+
+export async function markInvoiceSent(
+  id: string,
+): Promise<ActionResult<Invoice>> {
+  return runAction(() =>
+    transition(id, "sent", { permission: "update", note: "Marked sent" }),
+  );
+}
+
+export async function markInvoicePaid(
+  id: string,
+  paymentMethod?: string,
+): Promise<ActionResult<Invoice>> {
+  return runAction(() =>
+    transition(id, "paid", {
+      permission: "update",
+      note: "Marked paid",
+      paymentMethod: paymentMethod?.trim() || null,
+    }),
+  );
+}
+
+export async function markInvoiceComplete(
+  id: string,
+): Promise<ActionResult<Invoice>> {
+  return runAction(() =>
+    transition(id, "complete", {
+      permission: "update",
+      note: "Marked complete",
+    }),
+  );
+}
+
+export async function voidInvoice(id: string): Promise<ActionResult<Invoice>> {
+  return runAction(() =>
+    transition(id, "voided", { permission: "void", note: "Voided" }),
+  );
+}
+
+/**
+ * §4.5 — a deep copy as a fresh draft. The copy gets its own number and share
+ * token: reusing either would let the original be reached through the copy.
+ */
+export async function duplicateInvoice(
+  id: string,
+): Promise<ActionResult<Invoice>> {
+  return runAction(async () => {
+    await requirePermission("invoices", "create");
+
+    const source = await db.query.invoices.findFirst({
+      where: eq(invoices.id, id),
+      with: { items: { with: { taxes: true } }, taxes: true },
+    });
+    if (!source) throw new ActionError("Invoice not found");
+
+    const next = await getNextInvoiceNumber(source.customerId ?? undefined);
+    if (!next.ok) throw new ActionError(next.error);
+
+    const { id: _id, createdAt, updatedAt, items, taxes, ...columns } = source;
+
+    return db.transaction(async (tx) => {
+      const [copy] = await tx
+        .insert(invoices)
+        .values({
+          ...columns,
+          invoiceNumber: next.data,
+          shareToken: randomUUID(),
+          status: "draft",
+        })
+        .returning();
+
+      for (const item of items) {
+        const {
+          id: _itemId,
+          invoiceId: _invoiceId,
+          createdAt: _c,
+          updatedAt: _u,
+          taxes: itemTaxes,
+          ...itemColumns
+        } = item;
+
+        const [row] = await tx
+          .insert(invoiceItems)
+          .values({ ...itemColumns, invoiceId: copy.id })
+          .returning({ id: invoiceItems.id });
+
+        for (const tax of itemTaxes) {
+          const {
+            id: _taxId,
+            invoiceItemId: _itemRef,
+            createdAt: _tc,
+            updatedAt: _tu,
+            ...taxColumns
+          } = tax;
+          await tx
+            .insert(invoiceItemTaxes)
+            .values({ ...taxColumns, invoiceItemId: row.id });
+        }
+      }
+
+      for (const tax of taxes) {
+        const {
+          id: _summaryId,
+          invoiceId: _summaryRef,
+          createdAt: _sc,
+          updatedAt: _su,
+          ...taxColumns
+        } = tax;
+        await tx
+          .insert(invoiceTaxes)
+          .values({ ...taxColumns, invoiceId: copy.id });
+      }
+
+      await tx.insert(invoiceStatusHistory).values({
+        invoiceId: copy.id,
+        status: "draft",
+        note: `Duplicated from ${source.invoiceNumber}`,
+      });
+
+      return copy;
+    });
   });
 }
 
