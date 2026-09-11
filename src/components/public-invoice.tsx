@@ -27,7 +27,8 @@ const XML_FORMATS = [
 ];
 
 export function PublicInvoice({ token }: { token: string }) {
-  const html = `/api/public/invoices/${token}/html`;
+  const base = `/api/public/invoices/${token}`;
+  const html = `${base}/html`;
 
   return (
     <div className="min-h-full flex-1 bg-muted/40 px-4 py-8 sm:px-6">
@@ -74,7 +75,10 @@ export function PublicInvoice({ token }: { token: string }) {
             <Button
               size="sm"
               className="rounded-full"
-              onClick={needsServer("Download PDF")}
+              render={
+                // biome-ignore lint/a11y/useAnchorContent: the Button supplies it
+                <a href={`${base}/pdf`} download />
+              }
             >
               <Download className="size-4" />
               Download PDF
