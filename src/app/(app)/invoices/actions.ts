@@ -242,6 +242,35 @@ const invoiceValues = (input: ParsedInvoice, totals: ComputedTotals) => ({
   notes: input.notes,
 });
 
+/**
+ * §10.16 — the public page's only read. No session and no permission: the
+ * share token *is* the authorisation, which is why it is unguessable and why
+ * this takes a token rather than an id.
+ */
+export async function getPublicInvoice(
+  token: string,
+): Promise<InvoiceWithDetails | null> {
+  const row = await db.query.invoices.findFirst({
+    where: eq(invoices.shareToken, token),
+    with: {
+      customer: true,
+      items: { with: { taxes: true } },
+      taxes: true,
+      statusHistory: {
+        orderBy: (history, { asc }) => [asc(history.createdAt)],
+      },
+    },
+  });
+
+  if (!row) return null;
+
+  return {
+    ...row,
+    status: deriveStatus(row.status, row.dueDate),
+    paidWith: paidWith(row.statusHistory),
+  };
+}
+
 export async function listInvoices(): Promise<ActionResult<InvoiceListRow[]>> {
   return runAction(async () => {
     await requirePermission("invoices", "read");
