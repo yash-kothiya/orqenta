@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Ban,
@@ -20,8 +21,10 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { getInvoice } from "@/app/(app)/invoices/actions";
 import { ConfirmDialog, Detail } from "@/components/detail";
 import { StatusBadge } from "@/components/status-badge";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -37,6 +40,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -48,22 +52,20 @@ import {
 import { toast } from "@/components/ui/toast";
 import { formatMoney, formatPostalCityLine } from "@/lib/format";
 import {
-  findCustomer,
   type InvoiceStatus,
-  type MockInvoice,
-  type MockStatusChange,
-  PAYMENT_METHODS,
-} from "@/lib/mock-data";
-import { computeTotals } from "@/lib/totals";
+  type InvoiceWithDetails,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const stamp = () => new Date().toISOString().slice(0, 16).replace("T", " ");
+const PAYMENT_METHODS = [
+  "Bank Transfer",
+  "Credit Card",
+  "Cash",
+  "Check",
+  "PayPal",
+];
 
-/** §4.6 derived overdue: past its due date while still awaiting payment. */
-const isOverdue = (invoice: MockInvoice) =>
-  invoice.status === "sent" &&
-  invoice.dueDate !== null &&
-  invoice.dueDate < new Date().toISOString().slice(0, 10);
+const stamp = () => new Date().toISOString().slice(0, 16).replace("T", " ");
 
 // ponytail: every export/publish action below needs the server. Until §6 lands
 // they say so instead of pretending.
@@ -73,30 +75,66 @@ const needsServer = (what: string) => () =>
     description: "This lands with the §6 server actions.",
   });
 
-export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
+export function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
   const router = useRouter();
-  // ponytail: local until §6.3 mutations land — the actions only move the badge.
-  const [status, setStatus] = useState<InvoiceStatus>(
-    isOverdue(invoice) ? "overdue" : invoice.status,
-  );
-  const [history, setHistory] = useState<MockStatusChange[]>(
-    invoice.statusHistory,
-  );
 
-  const customer = findCustomer(invoice.customerId);
-  const { subtotal, tax, discount, total } = computeTotals(invoice);
+  const {
+    data: invoice,
+    isPending,
+    error,
+  } = useQuery({
+    queryKey: ["invoices", invoiceId],
+    queryFn: async () => {
+      try {
+        const result = await getInvoice(invoiceId);
+        if (!result.ok) {
+          console.error("Failed to load invoice:", result.error);
+          throw new Error(result.error || "Failed to load invoice");
+        }
+        if (!result.data) {
+          throw new Error("Invoice not found");
+        }
+        return result.data;
+      } catch (err) {
+        console.error("Invoice detail error:", err);
+        throw err;
+      }
+    },
+    retry: false,
+  });
+
+  if (isPending) {
+    return <Skeleton className="h-96 w-full rounded-xl" />;
+  }
+
+  if (error || !invoice) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Failed to load invoice</AlertTitle>
+      </Alert>
+    );
+  }
+
+  const invoiceData = invoice as InvoiceWithDetails;
+
+  // ponytail: local until §6.3 mutations land — the actions only move the badge.
+  const [status, setStatus] = useState<InvoiceStatus>(invoiceData.status as InvoiceStatus);
+  const [history, setHistory] = useState(invoiceData.statusHistory);
+
+  const customer = invoiceData.customer;
+  const subtotal = Number(invoiceData.subtotal ?? 0);
+  const tax = Number(invoiceData.taxAmount ?? 0);
+  const discount = Number(invoiceData.discountAmount ?? 0);
+  const total = Number(invoiceData.total ?? 0);
   const paid = status === "paid" || status === "complete";
 
   function move(next: InvoiceStatus, paymentMethod?: string) {
     setStatus(next);
-    setHistory((entries) => [
-      ...entries,
-      { status: next, changedAt: stamp(), paymentMethod },
-    ]);
     toast.add({
-      title: `${invoice.invoiceNumber} marked as ${next}`,
+      title: `${invoiceData.invoiceNumber} marked as ${next}`,
       description: paymentMethod ? `Paid with ${paymentMethod}.` : undefined,
     });
+    // Note: Status history is updated on the server via actions, not locally
   }
 
   const address = customer
@@ -114,10 +152,9 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
     : null;
 
   const meta = [
-    `Tax rate: ${invoice.taxRate}%`,
-    `Prices include tax: ${invoice.pricesIncludeTax ? "Yes" : "No"}`,
-    `Rounding: ${invoice.roundingMode === "line" ? "Per line" : "On total"}`,
-    `Tax mode: ${invoice.taxMode === "line" ? "Per line" : "Invoice total"}`,
+    `Tax rate: ${invoiceData.taxRate}%`,
+    `Prices include tax: ${invoiceData.pricesIncludeTax ? "Yes" : "No"}`,
+    `Rounding: ${invoiceData.roundingMode === "line" ? "Per line" : "On total"}`,
   ].join(" · ");
 
   return (
@@ -133,7 +170,7 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
             <ArrowLeft className="size-4" />
           </Button>
           <h1 className="text-2xl font-semibold">
-            Invoice #{invoice.invoiceNumber}
+            Invoice #{invoiceData.invoiceNumber}
           </h1>
           <StatusBadge status={status} />
         </div>
@@ -141,7 +178,7 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            render={<Link href={`/invoices/${invoice.id}/edit`} />}
+            render={<Link href={`/invoices/${invoiceData.id}/edit`} />}
           >
             <Pencil className="size-4" />
             Edit
@@ -233,7 +270,7 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
             title="Delete invoice"
             description="Delete this invoice? This cannot be undone."
             onConfirm={() => {
-              toast.add({ title: `${invoice.invoiceNumber} deleted` });
+              toast.add({ title: `${invoiceData.invoiceNumber} deleted` });
               router.push("/invoices");
             }}
           />
@@ -242,23 +279,23 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
 
       <Card className="grid gap-x-8 gap-y-4 p-6 text-sm md:grid-cols-2">
         <div className="flex flex-col gap-4">
-          <Detail label="Customer" value={invoice.customer} />
+          <Detail label="Customer" value={customer?.name ?? null} />
           <Detail label="Address" value={address} />
-          <Detail label="Issue Date" value={invoice.issueDate} />
+          <Detail label="Issue Date" value={invoiceData.issueDate} />
           <Detail
             label="Subtotal"
-            value={formatMoney(subtotal, invoice.currency)}
+            value={formatMoney(subtotal, invoiceData.currency)}
           />
           <p className="text-xs text-muted-foreground">{meta}</p>
           <div className="flex flex-col gap-1">
             <span className="text-sm text-muted-foreground">Total</span>
             <span className="text-lg font-semibold">
-              {formatMoney(total, invoice.currency)}
+              {formatMoney(total, invoiceData.currency)}
             </span>
           </div>
-          <Detail label="Payment Terms" value={invoice.paymentTerms} />
+          <Detail label="Payment Terms" value={invoiceData.paymentTerms} />
           <span className="text-sm text-muted-foreground">
-            {invoice.items.length} item(s)
+            {invoiceData.items.length} item(s)
           </span>
 
           <div className="flex flex-wrap gap-2">
@@ -268,7 +305,7 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
               render={
                 // biome-ignore lint/a11y/useAnchorContent: the Button supplies it
                 <a
-                  href={`/api/invoices/${invoice.id}/html`}
+                  href={`/api/invoices/${invoiceData.id}/html`}
                   target="_blank"
                   rel="noreferrer"
                 />
@@ -281,18 +318,18 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
               size="sm"
               render={
                 // biome-ignore lint/a11y/useAnchorContent: the Button supplies it
-                <a href={`/api/invoices/${invoice.id}/pdf`} download />
+                <a href={`/api/invoices/${invoiceData.id}/pdf`} download />
               }
             >
               <Download className="size-4" />
               Download PDF
             </Button>
-            {status !== "draft" && invoice.shareToken && (
+            {status !== "draft" && invoiceData.shareToken && (
               <Button
                 variant="outline"
                 size="sm"
                 render={
-                  <Link href={`/public/invoices/${invoice.shareToken}`} />
+                  <Link href={`/public/invoices/${invoiceData.shareToken}`} />
                 }
               >
                 <ExternalLink className="size-4" />
@@ -304,13 +341,13 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
 
         <div className="flex flex-col gap-4">
           <Detail label="Email" value={customer?.email ?? null} />
-          <Detail label="Due Date" value={invoice.dueDate} />
-          <Detail label="Tax" value={formatMoney(tax, invoice.currency)} />
+          <Detail label="Due Date" value={invoiceData.dueDate} />
+          <Detail label="Tax" value={formatMoney(tax, invoiceData.currency)} />
           <Detail
             label="Discount"
-            value={discount ? formatMoney(discount, invoice.currency) : null}
+            value={discount ? formatMoney(discount, invoiceData.currency) : null}
           />
-          {paid && <Detail label="Paid with" value={invoice.paidWith} />}
+          {paid && invoiceData.paidWith && <Detail label="Paid with" value={invoiceData.paidWith} />}
         </div>
       </Card>
 
@@ -325,7 +362,7 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {invoice.items.map((item) => (
+            {invoiceData.items.map((item) => (
               <TableRow key={item.id}>
                 <TableCell className="px-4 whitespace-pre-wrap">
                   {item.description}
@@ -334,12 +371,12 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
                   {item.quantity}
                 </TableCell>
                 <TableCell className="px-4 text-right">
-                  {formatMoney(item.unitPrice, invoice.currency)}
+                  {formatMoney(item.unitPrice, invoiceData.currency)}
                 </TableCell>
                 <TableCell className="px-4 text-right">
                   {formatMoney(
-                    item.quantity * item.unitPrice,
-                    invoice.currency,
+                    String(Number(item.quantity) * Number(item.unitPrice)),
+                    invoiceData.currency,
                   )}
                 </TableCell>
               </TableRow>
@@ -353,7 +390,7 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
         <ol className="flex flex-col">
           {history.map((entry, i) => (
             <li
-              key={`${entry.status}-${entry.changedAt}`}
+              key={`${entry.status}-${entry.createdAt}`}
               className="flex gap-3"
             >
               {/* The connector is drawn per row, so it centres on the dots at
@@ -374,7 +411,7 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
               >
                 <StatusBadge status={entry.status} />
                 <span className="text-sm text-muted-foreground">
-                  {entry.changedAt}
+                  {new Date(entry.createdAt).toISOString().slice(0, 16).replace("T", " ")}
                   {entry.paymentMethod ? ` · ${entry.paymentMethod}` : ""}
                 </span>
               </div>

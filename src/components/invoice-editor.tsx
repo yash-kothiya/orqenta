@@ -1,11 +1,17 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { useForm } from "@tanstack/react-form";
 import { Plus, Save, X } from "lucide-react";
 import Link from "next/link";
 import * as z from "zod";
+import { getInvoice } from "@/app/(app)/invoices/actions";
+import { listCustomers } from "@/app/(app)/customers/actions";
+import { listProducts } from "@/app/(app)/products/actions";
+import { listTaxDefinitions } from "@/app/(app)/settings/actions";
 import { DatePicker } from "@/components/date-picker";
 import { type Option, SelectInput } from "@/components/select-input";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -16,20 +22,21 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { formatMoney } from "@/lib/format";
 import {
-  CUSTOMERS,
-  DEFAULT_SETTINGS,
   INVOICE_STATUSES,
-  type MockInvoice,
-  type MockInvoiceItem,
-  NEXT_INVOICE_NUMBER,
-  PRODUCTS,
-  UNITS,
-} from "@/lib/mock-data";
+  type Customer,
+  type InvoiceWithDetails,
+  type Product,
+  type TaxDefinition,
+} from "@/lib/types";
 import { computeTotals } from "@/lib/totals";
+
+const UNITS = ["piece", "hour", "day", "month", "lump_sum"];
+const NEXT_INVOICE_NUMBER = "2025-001";
 
 const STATUS_OPTIONS: Option[] = [
   { value: "draft", label: "Draft" },
@@ -40,17 +47,10 @@ const STATUS_OPTIONS: Option[] = [
   { value: "voided", label: "Voided" },
 ];
 
-const CUSTOMER_OPTIONS: Option[] = CUSTOMERS.map((c) => ({
-  value: c.id,
-  label: c.name,
-}));
-
-const PRODUCT_OPTIONS: Option[] = PRODUCTS.map((p) => ({
-  value: p.id,
-  label: p.sku ? `${p.name} (${p.sku})` : p.name,
-}));
 
 const UNIT_OPTIONS: Option[] = UNITS.map((u) => ({ value: u, label: u }));
+
+// Define within component since options are created from props
 
 const TAX_MODE_OPTIONS: Option[] = [
   { value: "invoice", label: "Invoice total" },
@@ -183,7 +183,7 @@ function RowField({
 }
 
 /** Fixtures hold numbers; the form holds strings so the inputs stay clearable. */
-const itemValues = (item: MockInvoiceItem): ItemValues => ({
+const itemValues = (item: any): ItemValues => ({
   id: item.id,
   productId: item.productId ?? "",
   description: item.description,
@@ -194,23 +194,132 @@ const itemValues = (item: MockInvoiceItem): ItemValues => ({
   notes: item.notes ?? "",
 });
 
-export function InvoiceEditor({ invoice }: { invoice?: MockInvoice }) {
-  const editing = invoice !== undefined;
+export function InvoiceEditor({ invoiceId }: { invoiceId?: string } = {}) {
+  const editing = invoiceId !== undefined;
+
+  const {
+    data: invoice,
+    isPending: invoicePending,
+    error: invoiceError,
+  } = useQuery({
+    queryKey: ["invoices", invoiceId],
+    queryFn: async () => {
+      try {
+        const result = await getInvoice(invoiceId!);
+        if (!result.ok) throw new Error(result.error || "Failed to load invoice");
+        if (!result.data) throw new Error("Invoice not found");
+        return result.data;
+      } catch (err) {
+        console.error("Failed to load invoice for editing:", err);
+        throw err;
+      }
+    },
+    enabled: editing,
+    retry: false,
+  });
+
+  const {
+    data: customers = [],
+    isPending: customersPending,
+    error: customersError,
+  } = useQuery({
+    queryKey: ["customers", "list"],
+    queryFn: async () => {
+      try {
+        const result = await listCustomers();
+        if (!result.ok) throw new Error(result.error);
+        return result.data;
+      } catch (err) {
+        console.error("Failed to load customers:", err);
+        throw err;
+      }
+    },
+    retry: false,
+  });
+
+  const {
+    data: products = [],
+    isPending: productsPending,
+    error: productsError,
+  } = useQuery({
+    queryKey: ["products", "list"],
+    queryFn: async () => {
+      try {
+        const result = await listProducts();
+        if (!result.ok) throw new Error(result.error);
+        return result.data;
+      } catch (err) {
+        console.error("Failed to load products:", err);
+        throw err;
+      }
+    },
+    retry: false,
+  });
+
+  const {
+    data: taxDefinitions = [],
+    isPending: taxDefsPending,
+    error: taxDefsError,
+  } = useQuery({
+    queryKey: ["tax_definitions", "list"],
+    queryFn: async () => {
+      try {
+        const result = await listTaxDefinitions();
+        if (!result.ok) throw new Error(result.error);
+        return result.data;
+      } catch (err) {
+        console.error("Failed to load tax definitions:", err);
+        throw err;
+      }
+    },
+    retry: false,
+  });
+
+  const isLoading = invoicePending || customersPending || productsPending || taxDefsPending;
+
+  // Show error only if we have errors and no data at all
+  if ((customersError || productsError || taxDefsError) && customers.length === 0 && products.length === 0) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Failed to load form data - please refresh the page</AlertTitle>
+      </Alert>
+    );
+  }
+
+  // For new invoices, show form immediately even while loading dropdown data
+  // For editing, wait for invoice data to load
+  if (editing && invoicePending) {
+    return <Skeleton className="h-96 w-full rounded-xl" />;
+  }
+
+  // Create options from data
+  const customerOptions: Option[] = customers.map((c) => ({
+    value: c.id,
+    label: c.name,
+  }));
+
+  const productOptions: Option[] = products.map((p) => ({
+    value: p.id,
+    label: p.name,
+  }));
+
+  const invData = invoice ?? ({} as InvoiceWithDetails);
+
   const form = useForm({
     defaultValues: {
-      customerId: invoice?.customerId ?? "",
-      invoiceNumber: invoice?.invoiceNumber ?? NEXT_INVOICE_NUMBER,
-      currency: invoice?.currency ?? DEFAULT_SETTINGS.currency,
-      status: invoice?.status ?? "draft",
-      issueDate: invoice?.issueDate ?? new Date().toISOString().slice(0, 10),
-      dueDate: invoice?.dueDate ?? "",
-      taxMode: invoice?.taxMode ?? "invoice",
-      taxRate: String(invoice?.taxRate ?? 0),
-      pricesIncludeTax: invoice?.pricesIncludeTax ? "yes" : "no",
-      roundingMode: invoice?.roundingMode ?? "line",
-      paymentTerms: invoice?.paymentTerms ?? DEFAULT_SETTINGS.paymentTerms,
-      notes: invoice?.notes ?? DEFAULT_SETTINGS.defaultNotes,
-      items: invoice ? invoice.items.map(itemValues) : [emptyItem()],
+      customerId: invData?.customerId ?? "",
+      invoiceNumber: (invData?.invoiceNumber as string) ?? NEXT_INVOICE_NUMBER,
+      currency: invData?.currency ?? "EUR",
+      status: (invData?.status as any) ?? "draft",
+      issueDate: (invData?.issueDate as string) ?? new Date().toISOString().slice(0, 10),
+      dueDate: (invData?.dueDate as string) ?? "",
+      taxMode: ("invoice" as "invoice" | "line"),
+      taxRate: String(invData?.taxRate ?? 0),
+      pricesIncludeTax: (invData?.pricesIncludeTax ?? false) ? "yes" : "no",
+      roundingMode: ((invData?.roundingMode ?? "line") as "line" | "total"),
+      paymentTerms: (invData?.paymentTerms ?? "") as string,
+      notes: (invData?.notes ?? "") as string,
+      items: invData?.items ? invData.items.map(itemValues) : [emptyItem()],
     } as InvoiceValues,
     validators: { onBlur: invoiceSchema, onSubmit: invoiceSchema },
     onSubmit: async ({ value }) => {
@@ -231,14 +340,14 @@ export function InvoiceEditor({ invoice }: { invoice?: MockInvoice }) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">
           {editing
-            ? `Edit Invoice #${invoice.invoiceNumber}`
+            ? `Edit Invoice #${invData.invoiceNumber}`
             : "Create Invoice"}
         </h1>
         <div className="flex gap-2">
           <Button
             variant="outline"
             render={
-              <Link href={invoice ? `/invoices/${invoice.id}` : "/invoices"} />
+              <Link href={invData?.id ? `/invoices/${invData.id}` : "/invoices"} />
             }
           >
             Cancel
@@ -275,7 +384,7 @@ export function InvoiceEditor({ invoice }: { invoice?: MockInvoice }) {
                       id={field.name}
                       value={field.state.value}
                       onValueChange={field.handleChange}
-                      options={CUSTOMER_OPTIONS}
+                      options={customerOptions}
                       placeholder="Select customer"
                       invalid={invalid}
                     />
@@ -421,10 +530,10 @@ export function InvoiceEditor({ invoice }: { invoice?: MockInvoice }) {
                                   ariaLabel="Product"
                                   placeholder="Select product"
                                   value={field.state.value}
-                                  options={PRODUCT_OPTIONS}
+                                  options={productOptions}
                                   onValueChange={(id) => {
                                     field.handleChange(id);
-                                    const product = PRODUCTS.find(
+                                    const product = products.find(
                                       (p) => p.id === id,
                                     );
                                     if (!product) return;
@@ -440,12 +549,6 @@ export function InvoiceEditor({ invoice }: { invoice?: MockInvoice }) {
                                       `items[${i}].unit`,
                                       product.unit ?? "",
                                     );
-                                    if (taxMode === "line") {
-                                      form.setFieldValue(
-                                        `items[${i}].taxPercent`,
-                                        String(product.taxPercent),
-                                      );
-                                    }
                                   }}
                                 />
                               </RowField>

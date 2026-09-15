@@ -1,11 +1,15 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { listInvoices } from "@/app/(app)/invoices/actions";
 import { StatusBadge } from "@/components/status-badge";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -15,12 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { compareText, formatMoney } from "@/lib/format";
-import {
-  INVOICES,
-  type InvoiceStatus,
-  type MockInvoice,
-} from "@/lib/mock-data";
-import { computeTotals } from "@/lib/totals";
+import { type InvoiceListRow, type InvoiceStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const FILTERS = [
@@ -54,8 +53,18 @@ const COLUMNS: { key: SortKey; label: string; className?: string }[] = [
   },
 ];
 
-function compareRows(a: MockInvoice, b: MockInvoice, key: SortKey) {
-  if (key === "total") return computeTotals(a).total - computeTotals(b).total;
+function compareRows(a: InvoiceListRow, b: InvoiceListRow, key: SortKey) {
+  if (key === "total") {
+    const aTotal = Number(a.total ?? 0);
+    const bTotal = Number(b.total ?? 0);
+    return aTotal - bTotal;
+  }
+  if (key === "customer") {
+    return compareText(a.customer?.name ?? "", b.customer?.name ?? "");
+  }
+  if (key === "issueDate" || key === "updatedAt") {
+    return compareText(String(a[key]), String(b[key]));
+  }
   return compareText(String(a[key]), String(b[key]));
 }
 
@@ -64,11 +73,33 @@ export function InvoiceList() {
   const [sortKey, setSortKey] = useState<SortKey>("invoiceNumber");
   const [asc, setAsc] = useState(false);
 
+  const {
+    data: invoices = [],
+    isPending,
+    error,
+  } = useQuery({
+    queryKey: ["invoices", "list"],
+    queryFn: async () => {
+      try {
+        const result = await listInvoices();
+        if (!result.ok) {
+          console.error("Failed to load invoices:", result.error);
+          throw new Error(result.error || "Failed to load invoices");
+        }
+        return result.data;
+      } catch (err) {
+        console.error("Invoice list error:", err);
+        throw err;
+      }
+    },
+    retry: false,
+  });
+
   const rows = useMemo(() => {
     const filtered =
       filter === "all"
-        ? INVOICES
-        : INVOICES.filter((i) => i.status === (filter as InvoiceStatus));
+        ? invoices
+        : invoices.filter((i) => i.status === (filter as InvoiceStatus));
 
     // Ties fall back to invoice number, per §10.3.
     return [...filtered].sort((a, b) => {
@@ -76,7 +107,7 @@ export function InvoiceList() {
       const ordered = asc ? primary : -primary;
       return ordered || compareText(a.invoiceNumber, b.invoiceNumber);
     });
-  }, [filter, sortKey, asc]);
+  }, [filter, sortKey, asc, invoices]);
 
   const showPaidWith = rows.some((r) => r.paidWith);
 
@@ -89,7 +120,27 @@ export function InvoiceList() {
     setAsc(true);
   }
 
-  if (INVOICES.length === 0) {
+  if (isPending) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Header />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Header />
+        <Alert variant="destructive">
+          <AlertTitle>{error.message}</AlertTitle>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (invoices.length === 0) {
     return (
       <div className="flex flex-col gap-6">
         <Header />
@@ -172,15 +223,12 @@ export function InvoiceList() {
                   </TableCell>
                   <TableCell
                     className="max-w-[16rem] truncate px-4"
-                    title={invoice.customer}
+                    title={invoice.customer?.name ?? ""}
                   >
-                    {invoice.customer}
+                    {invoice.customer?.name ?? "—"}
                   </TableCell>
                   <TableCell className="px-4">
-                    {formatMoney(
-                      computeTotals(invoice).total,
-                      invoice.currency,
-                    )}
+                    {formatMoney(invoice.total, invoice.currency)}
                   </TableCell>
                   <TableCell className="px-4">
                     <StatusBadge status={invoice.status} />
@@ -189,7 +237,7 @@ export function InvoiceList() {
                     {invoice.issueDate}
                   </TableCell>
                   <TableCell className="hidden px-4 text-right text-muted-foreground md:table-cell">
-                    {invoice.updatedAt}
+                    {invoice.updatedAt.toISOString().slice(0, 10)}
                   </TableCell>
                   {showPaidWith && (
                     <TableCell className="hidden px-4 sm:table-cell">
