@@ -54,6 +54,62 @@ export const SETTING_DEFAULTS = {
 
 export type Settings = typeof SETTING_DEFAULTS;
 
+export const isSettingKey = (key: string): key is keyof Settings =>
+  key in SETTING_DEFAULTS;
+
+/**
+ * §6.3 — rows the original system wrote under an older name. The §7 list above
+ * is authoritative, so these read forward into it.
+ */
+export const LEGACY_SETTING_KEYS: Record<string, keyof Settings> = {
+  email: "companyEmail",
+  phone: "companyPhone",
+  taxId: "companyTaxId",
+  countryCode: "companyCountryCode",
+  logoUrl: "logo",
+};
+
+/** Clearing one of these removes the row; every other key keeps its "". */
+export const CLEARABLE_SETTING_KEYS = [
+  "companyTaxId",
+  "companyPhone",
+  "companyEmail",
+  "companyCountryCode",
+  "companyCity",
+  "companyPostalCode",
+] as const satisfies readonly (keyof Settings)[];
+
+/**
+ * The table is all text, so each value comes back through the shape of its
+ * default — that is what makes the booleans booleans again.
+ */
+export function rowsToSettings(
+  rows: readonly { key: string; value: string }[],
+): Settings {
+  const stored = new Map<string, string>();
+  const legacy = new Map<string, string>();
+
+  for (const row of rows) {
+    if (isSettingKey(row.key)) stored.set(row.key, row.value);
+    else if (LEGACY_SETTING_KEYS[row.key]) {
+      legacy.set(LEGACY_SETTING_KEYS[row.key], row.value);
+    }
+  }
+
+  // A canonical row always wins over the legacy one it aliases.
+  for (const [key, value] of legacy) {
+    if (!stored.has(key)) stored.set(key, value);
+  }
+
+  return Object.fromEntries(
+    Object.entries(SETTING_DEFAULTS).map(([key, fallback]) => {
+      const value = stored.get(key);
+      if (value === undefined) return [key, fallback];
+      return [key, typeof fallback === "boolean" ? value === "true" : value];
+    }),
+  ) as Settings;
+}
+
 type KeysOfType<T> = {
   [K in keyof Settings]: Settings[K] extends T ? K : never;
 }[keyof Settings];

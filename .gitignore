@@ -42,3 +42,6 @@ next-env.d.ts
 
 # drizzle
 !.env.example
+
+# Logos written by updateSettings at runtime.
+/public/uploads

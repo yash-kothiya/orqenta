@@ -10,24 +10,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
-import { toast } from "@/components/ui/toast";
 
-// ponytail: the XML profiles and the PDF print both need the server (§11), so
-// they say so instead of pretending. The HTML render route is real.
-const needsServer = (what: string) => () =>
-  toast.add({
-    title: `${what} is not wired yet`,
-    description: "This lands with the §11 render routes.",
-  });
-
+/**
+ * §10.16 lists three formats. Two are built; Factur-X needs the XML embedded
+ * in a PDF/A-3 container, so it is shown disabled rather than handing over a
+ * UBL file under the wrong name.
+ */
 const XML_FORMATS = [
-  "Standard UBL XML",
-  "UBL 2.1 (PEPPOL)",
-  "FacturX / ZUGFeRD 2.2",
+  { label: "Standard UBL XML", profile: "ubl" },
+  { label: "UBL 2.1 (PEPPOL)", profile: "ubl21" },
+  { label: "FacturX / ZUGFeRD 2.2", profile: null },
 ];
 
 export function PublicInvoice({ token }: { token: string }) {
-  const html = `/api/public/invoices/${token}/html`;
+  const base = `/api/public/invoices/${token}`;
+  const html = `${base}/html`;
 
   return (
     <div className="min-h-full flex-1 bg-muted/40 px-4 py-8 sm:px-6">
@@ -48,11 +45,23 @@ export function PublicInvoice({ token }: { token: string }) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Format</DropdownMenuLabel>
-                {XML_FORMATS.map((format) => (
-                  <DropdownMenuItem key={format} onClick={needsServer(format)}>
-                    {format}
-                  </DropdownMenuItem>
-                ))}
+                {XML_FORMATS.map(({ label, profile }) =>
+                  profile ? (
+                    <DropdownMenuItem
+                      key={label}
+                      render={
+                        // biome-ignore lint/a11y/useAnchorContent: the item supplies it
+                        <a href={`${base}/xml?profile=${profile}`} download />
+                      }
+                    >
+                      {label}
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem key={label} disabled>
+                      {label}
+                    </DropdownMenuItem>
+                  ),
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -74,7 +83,10 @@ export function PublicInvoice({ token }: { token: string }) {
             <Button
               size="sm"
               className="rounded-full"
-              onClick={needsServer("Download PDF")}
+              render={
+                // biome-ignore lint/a11y/useAnchorContent: the Button supplies it
+                <a href={`${base}/pdf`} download />
+              }
             >
               <Download className="size-4" />
               Download PDF

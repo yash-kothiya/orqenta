@@ -31,13 +31,6 @@ export type MockProduct = {
   isActive: boolean;
 };
 
-export type MockTaxDefinition = {
-  id: string;
-  code: string;
-  name: string | null;
-  percent: number;
-};
-
 export type MockInvoiceItem = {
   id: string;
   productId: string | null;
@@ -186,29 +179,9 @@ export const PRODUCTS: MockProduct[] = [
   },
 ];
 
-export const PRODUCT_CATEGORIES = [
-  { code: "service", name: "Service" },
-  { code: "goods", name: "Goods" },
-  { code: "subscription", name: "Subscription" },
-  { code: "other", name: "Other" },
-];
-
-export const PRODUCT_UNITS = [
-  { code: "piece", name: "Piece" },
-  { code: "hour", name: "Hour" },
-  { code: "day", name: "Day" },
-  { code: "kg", name: "Kilogram" },
-  { code: "m", name: "Meter" },
-  { code: "lump_sum", name: "Lump Sum" },
-];
-
-export const TAX_DEFINITIONS: MockTaxDefinition[] = [
-  { id: "tax_std", code: "STD", name: "Standard rate", percent: 21 },
-  { id: "tax_low", code: "LOW", name: "Reduced rate", percent: 9 },
-  { id: "tax_zero", code: "ZERO", name: null, percent: 0 },
-];
-
-export const UNITS = PRODUCT_UNITS.map((u) => u.code);
+// ponytail: the invoice editor's unit dropdown, until it reads product_units
+// with the rest of the invoice actions.
+export const UNITS = ["piece", "hour", "day", "kg", "litre", "month"];
 
 export const INVOICES: MockInvoice[] = [
   {
@@ -486,10 +459,6 @@ export const DEFAULT_SETTINGS = {
   paymentTerms: "Due in 30 days",
   defaultNotes: "Thank you for your business!",
 };
-
-/** §10.10/§10.11 tax option + detail label. */
-export const taxLabel = (t: MockTaxDefinition) =>
-  `${t.name || t.code || `${t.percent}%`} (${t.percent}%)`;
 
 export const findProduct = (id: string) => PRODUCTS.find((p) => p.id === id);
 

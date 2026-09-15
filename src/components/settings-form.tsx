@@ -1,15 +1,35 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleCheck, Save, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  createProductCategory,
+  createProductUnit,
+  deleteProductCategory,
+  deleteProductUnit,
+  listProductCategories,
+  listProducts,
+  listProductUnits,
+  updateProductCategory,
+  updateProductUnit,
+} from "@/app/(app)/products/actions";
+import {
+  createTaxDefinition,
+  deleteTaxDefinition,
+  getSettings,
+  listTaxDefinitions,
+  updateSettings,
+  updateTaxDefinition,
+} from "@/app/(app)/settings/actions";
 import { ColorPicker } from "@/components/color-picker";
 import { ItemManager, type ManagedRow } from "@/components/item-manager";
 import { type Option, SelectInput } from "@/components/select-input";
 import { TemplateList } from "@/components/template-list";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -22,14 +42,11 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  PRODUCT_CATEGORIES,
-  PRODUCT_UNITS,
-  PRODUCTS,
-  TAX_DEFINITIONS,
-  TEMPLATES,
-} from "@/lib/mock-data";
+import { unwrap } from "@/lib/action-result";
+import { TEMPLATES } from "@/lib/mock-data";
+import { invalidate, type MutatedResource } from "@/lib/query-invalidation";
 import {
   type BoolKey,
   DATE_FORMATS,
@@ -49,13 +66,55 @@ import { cn } from "@/lib/utils";
 /** A logo is either a served path, a remote URL or an inline data image. */
 const LOGO_RE = /^(https?:\/\/|\/|data:image\/)/;
 
-const toRows = (items: { code: string; name: string }[]): ManagedRow[] =>
-  items.map((i) => ({ id: i.code, code: i.code, name: i.name }));
+/**
+ * The three §10.15 managers are the same wiring over three resources: read the
+ * rows, and run one action per edit, invalidating the resource afterwards.
+ */
+function useManagedRows<T>({
+  resource,
+  list,
+  create,
+  update,
+  remove,
+  toRow,
+}: {
+  resource: MutatedResource;
+  list: () => Promise<T[]>;
+  create: (values: Record<string, string>) => Promise<void>;
+  update: (id: string, values: Record<string, string>) => Promise<void>;
+  remove: (id: string) => Promise<void>;
+  toRow: (row: T) => ManagedRow;
+}) {
+  const queryClient = useQueryClient();
+  const { data = [] } = useQuery({
+    queryKey: [resource, "list"],
+    queryFn: list,
+  });
+
+  const run = useMutation({
+    mutationFn: (edit: () => Promise<void>) => edit(),
+    onSuccess: () => invalidate(queryClient, resource),
+  });
+
+  return {
+    error: run.error,
+    props: {
+      rows: data.map(toRow),
+      busy: run.isPending,
+      onCreate: (values: Record<string, string>) =>
+        run.mutate(() => create(values)),
+      onUpdate: (id: string, values: Record<string, string>) =>
+        run.mutate(() => update(id, values)),
+      onDelete: (id: string) => run.mutate(() => remove(id)),
+    },
+  };
+}
 
 /** `canEdit` is settings:update, resolved from the session by the page (§10.15). */
 export function SettingsForm({ canEdit }: { canEdit: boolean }) {
   const router = useRouter();
   const params = useSearchParams();
+  const queryClient = useQueryClient();
 
   // §10.15: the Templates entry only appears once templates exist.
   const sections = SECTIONS.filter(
@@ -66,17 +125,99 @@ export function SettingsForm({ canEdit }: { canEdit: boolean }) {
 
   const [values, setValues] = useState<Settings>(SETTING_DEFAULTS);
   const [saved, setSaved] = useState(false);
-  const [categories, setCategories] = useState(toRows(PRODUCT_CATEGORIES));
-  const [units, setUnits] = useState(toRows(PRODUCT_UNITS));
-  const [taxDefs, setTaxDefs] = useState<ManagedRow[]>(
-    TAX_DEFINITIONS.map((t) => ({
-      id: t.id,
-      code: t.code,
-      name: t.name ?? "",
-      percent: String(t.percent),
-      countryCode: "",
-    })),
-  );
+
+  const { data: stored } = useQuery({
+    queryKey: ["settings", "all"],
+    queryFn: () => getSettings().then(unwrap),
+  });
+
+  // The panel is an uncontrolled draft, so the server copy seeds it once it
+  // arrives rather than fighting whatever is being typed.
+  useEffect(() => {
+    if (stored) setValues(stored);
+  }, [stored]);
+
+  const save = useMutation({
+    mutationFn: (next: Settings) => updateSettings(next).then(unwrap),
+    onSuccess: async (fresh) => {
+      setValues(fresh);
+      setSaved(true);
+      // A templateId change moves templates.is_default too (§6.3).
+      await invalidate(queryClient, "settings", "templates");
+    },
+  });
+  const categoryManager = useManagedRows({
+    resource: "product_categories",
+    list: () => listProductCategories().then(unwrap),
+    create: (values) =>
+      createProductCategory(values as never)
+        .then(unwrap)
+        .then(() => undefined),
+    update: (id, values) =>
+      updateProductCategory(id, values as never)
+        .then(unwrap)
+        .then(() => undefined),
+    remove: (id) =>
+      deleteProductCategory(id)
+        .then(unwrap)
+        .then(() => undefined),
+    toRow: (row) => ({ id: row.id, code: row.code, name: row.name }),
+  });
+
+  const unitManager = useManagedRows({
+    resource: "product_units",
+    list: () => listProductUnits().then(unwrap),
+    create: (values) =>
+      createProductUnit(values as never)
+        .then(unwrap)
+        .then(() => undefined),
+    update: (id, values) =>
+      updateProductUnit(id, values as never)
+        .then(unwrap)
+        .then(() => undefined),
+    remove: (id) =>
+      deleteProductUnit(id)
+        .then(unwrap)
+        .then(() => undefined),
+    toRow: (row) => ({ id: row.id, code: row.code, name: row.name }),
+  });
+
+  const taxManager = useManagedRows({
+    resource: "tax_definitions",
+    list: () => listTaxDefinitions().then(unwrap),
+    create: (values) =>
+      createTaxDefinition(values as never)
+        .then(unwrap)
+        .then(() => undefined),
+    update: (id, values) =>
+      updateTaxDefinition(id, values as never)
+        .then(unwrap)
+        .then(() => undefined),
+    remove: (id) =>
+      deleteTaxDefinition(id)
+        .then(unwrap)
+        .then(() => undefined),
+    toRow: (row) => ({
+      id: row.id,
+      code: row.code ?? "",
+      name: row.name ?? "",
+      percent: row.percent,
+      countryCode: row.countryCode ?? "",
+    }),
+  });
+
+  // Only the two lookup managers need it, to show "In use (n)" before delete.
+  const { data: allProducts = [] } = useQuery({
+    queryKey: ["products", "list", "all"],
+    queryFn: () => listProducts(true).then(unwrap),
+  });
+
+  // One alert for the panel: whichever write failed last is the one to show.
+  const panelError =
+    save.error ??
+    taxManager.error ??
+    categoryManager.error ??
+    unitManager.error;
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     setValues((v) => ({ ...v, [key]: value }));
@@ -304,8 +445,7 @@ export function SettingsForm({ canEdit }: { canEdit: boolean }) {
             <Separator />
             <ItemManager
               title="Tax Definitions"
-              rows={taxDefs}
-              onChange={setTaxDefs}
+              {...taxManager.props}
               fields={[
                 { key: "code", label: "Tax code", required: true },
                 { key: "name", label: "Display name", required: true },
@@ -330,10 +470,9 @@ export function SettingsForm({ canEdit }: { canEdit: boolean }) {
           <div className="grid gap-8 lg:grid-cols-2">
             <ItemManager
               title="Product Categories"
-              rows={categories}
-              onChange={setCategories}
+              {...categoryManager.props}
               usage={(row) =>
-                PRODUCTS.filter((p) => p.category === row.code).length
+                allProducts.filter((p) => p.category === row.code).length
               }
               fields={[
                 { key: "code", label: "Category Code", required: true },
@@ -342,10 +481,9 @@ export function SettingsForm({ canEdit }: { canEdit: boolean }) {
             />
             <ItemManager
               title="Product Units"
-              rows={units}
-              onChange={setUnits}
+              {...unitManager.props}
               usage={(row) =>
-                PRODUCTS.filter((p) => p.unit === row.code).length
+                allProducts.filter((p) => p.unit === row.code).length
               }
               fields={[
                 { key: "code", label: "Unit Code", required: true },
@@ -404,13 +542,16 @@ export function SettingsForm({ canEdit }: { canEdit: boolean }) {
         </Alert>
       )}
 
-      {saved && (
+      {panelError && (
+        <Alert variant="destructive">
+          <AlertTitle>{panelError.message}</AlertTitle>
+        </Alert>
+      )}
+
+      {saved && !save.isPending && (
         <Alert>
           <CircleCheck />
           <AlertTitle>Settings saved</AlertTitle>
-          <AlertDescription>
-            Mock only — the payload was logged to the console.
-          </AlertDescription>
         </Alert>
       )}
 
@@ -448,13 +589,10 @@ export function SettingsForm({ canEdit }: { canEdit: boolean }) {
           {panel()}
           <div>
             <Button
-              onClick={() => {
-                // ponytail: no server action yet — §6 updateSettings replaces this.
-                console.log("settings payload", values);
-                setSaved(true);
-              }}
+              disabled={save.isPending}
+              onClick={() => save.mutate(values)}
             >
-              <Save className="size-4" />
+              {save.isPending ? <Spinner /> : <Save className="size-4" />}
               Save Settings
             </Button>
           </div>

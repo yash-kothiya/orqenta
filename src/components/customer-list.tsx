@@ -1,9 +1,13 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
 import Link from "next/link";
+import { listCustomers } from "@/app/(app)/customers/actions";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -12,11 +16,40 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { unwrap } from "@/lib/action-result";
 import { formatPostalCityLine } from "@/lib/format";
-import { CUSTOMERS } from "@/lib/mock-data";
 
 export function CustomerList() {
-  if (CUSTOMERS.length === 0) {
+  const {
+    data: customers = [],
+    isPending,
+    error,
+  } = useQuery({
+    queryKey: ["customers", "list"],
+    queryFn: () => listCustomers().then(unwrap),
+  });
+
+  if (isPending) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Header />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Header />
+        <Alert variant="destructive">
+          <AlertTitle>{error.message}</AlertTitle>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (customers.length === 0) {
     return (
       <div className="flex flex-col gap-6">
         <Header />
@@ -36,7 +69,7 @@ export function CustomerList() {
 
       {/* Mobile: one card per customer. */}
       <div className="flex flex-col gap-3 md:hidden">
-        {CUSTOMERS.map((customer) => (
+        {customers.map((customer) => (
           <Link key={customer.id} href={`/customers/${customer.id}`}>
             <Card className="gap-1 px-4 py-3">
               <span className="font-semibold">{customer.name}</span>
@@ -60,7 +93,7 @@ export function CustomerList() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {CUSTOMERS.map((customer) => (
+            {customers.map((customer) => (
               <TableRow key={customer.id} className="even:bg-muted/30">
                 <TableCell className="px-4 font-medium">
                   <Link

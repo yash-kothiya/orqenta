@@ -265,12 +265,25 @@ export function InvoiceDetail({ invoice }: { invoice: MockInvoice }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={needsServer("View HTML")}
+              render={
+                // biome-ignore lint/a11y/useAnchorContent: the Button supplies it
+                <a
+                  href={`/api/invoices/${invoice.id}/html`}
+                  target="_blank"
+                  rel="noreferrer"
+                />
+              }
             >
               <FileCode2 className="size-4" />
               View HTML
             </Button>
-            <Button size="sm" onClick={needsServer("Download PDF")}>
+            <Button
+              size="sm"
+              render={
+                // biome-ignore lint/a11y/useAnchorContent: the Button supplies it
+                <a href={`/api/invoices/${invoice.id}/pdf`} download />
+              }
+            >
               <Download className="size-4" />
               Download PDF
             </Button>

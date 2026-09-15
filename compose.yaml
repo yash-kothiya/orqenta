@@ -17,11 +17,16 @@ services:
 
   web:
     build: .
+    # The secrets §12 requires come from your .env; anything set below wins over
+    # it, which is how the connection string gets pointed at the db service.
+    env_file: .env
     environment:
       # inside the network the host is "db"; from your machine it is localhost:5433
       DATABASE_URL: postgres://postgres:postgres@db:5432/orqenta
       # ponytail: bind-mount file events are unreliable on Windows; drop if HMR works without it
       WATCHPACK_POLLING: "true"
+    # The schema has to exist before the first request; db is already healthy here.
+    command: sh -c "pnpm db:migrate && pnpm dev"
     ports:
       - "3001:3001"
     volumes:

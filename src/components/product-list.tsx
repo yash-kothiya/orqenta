@@ -1,9 +1,13 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { PackagePlus } from "lucide-react";
 import Link from "next/link";
+import { listProducts } from "@/app/(app)/products/actions";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -12,11 +16,40 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { unwrap } from "@/lib/action-result";
 import { formatMoney } from "@/lib/format";
-import { PRODUCTS } from "@/lib/mock-data";
 
 export function ProductList() {
-  if (PRODUCTS.length === 0) {
+  const {
+    data: products = [],
+    isPending,
+    error,
+  } = useQuery({
+    queryKey: ["products", "list"],
+    queryFn: () => listProducts().then(unwrap),
+  });
+
+  if (isPending) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Header />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Header />
+        <Alert variant="destructive">
+          <AlertTitle>{error.message}</AlertTitle>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (products.length === 0) {
     return (
       <div className="flex flex-col gap-6">
         <Header />
@@ -36,7 +69,7 @@ export function ProductList() {
 
       {/* Mobile: one card per product. */}
       <div className="flex flex-col gap-3 sm:hidden">
-        {PRODUCTS.map((product) => (
+        {products.map((product) => (
           <Card key={product.id} className="gap-2 px-4 py-3">
             <div className="flex items-start justify-between gap-3">
               <Link
@@ -68,7 +101,7 @@ export function ProductList() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {PRODUCTS.map((product) => (
+            {products.map((product) => (
               <TableRow key={product.id}>
                 <TableCell className="px-4 font-medium">
                   <Link

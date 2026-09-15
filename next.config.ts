@@ -56,6 +56,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  // Puppeteer resolves a Chrome binary from disk at runtime; bundling it
+  // rewrites those paths and the launch fails.
+  serverExternalPackages: ["puppeteer"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
