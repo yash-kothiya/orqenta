@@ -1,8 +1,14 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
 import Link from "next/link";
+import { listUsers } from "@/app/(app)/users/actions";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -11,10 +17,56 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { type MockUser, USERS, userLabel } from "@/lib/mock-data";
+import { type User } from "@/lib/types";
+
+function userLabel(user: User): string {
+  return user.displayName || user.username;
+}
 
 export function UserList() {
-  if (USERS.length === 0) {
+  const {
+    data: usersList = [],
+    isPending,
+    error,
+  } = useQuery({
+    queryKey: ["users", "list"],
+    queryFn: async () => {
+      try {
+        const result = await listUsers();
+        if (!result.ok) {
+          console.error("Failed to load users:", result.error);
+          throw new Error(result.error || "Failed to load users");
+        }
+        return result.data;
+      } catch (err) {
+        console.error("User list error:", err);
+        throw err;
+      }
+    },
+    retry: false,
+  });
+
+  if (isPending) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Header />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Header />
+        <Alert variant="destructive">
+          <AlertTitle>{(error as Error).message}</AlertTitle>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (usersList.length === 0) {
     return (
       <div className="flex flex-col gap-6">
         <Header />
@@ -32,7 +84,7 @@ export function UserList() {
 
       {/* Mobile: one card per user. */}
       <div className="flex flex-col gap-3 sm:hidden">
-        {USERS.map((user) => (
+        {usersList.map((user) => (
           <Card key={user.id} className="gap-1 px-4 py-3">
             <div className="flex items-center gap-2">
               <Link
@@ -58,7 +110,7 @@ export function UserList() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {USERS.map((user) => (
+            {usersList.map((user) => (
               <TableRow key={user.id}>
                 <TableCell className="px-4 font-medium">
                   <Link href={`/users/${user.id}`} className="hover:underline">
@@ -85,7 +137,7 @@ function RoleBadge({
   user,
   adminOnly,
 }: {
-  user: MockUser;
+  user: User;
   adminOnly?: boolean;
 }) {
   if (user.isAdmin) return <Badge>Admin</Badge>;

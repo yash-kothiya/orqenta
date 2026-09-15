@@ -1,10 +1,22 @@
 "use client";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@tanstack/react-form";
 import { Save, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as z from "zod";
+import {
+  createUser,
+  deleteUser,
+  getUser,
+  getUserPermissions,
+  updateUser,
+  updateUserPermissions,
+} from "@/app/(app)/users/actions";
+import { type Action, type Resource } from "@/lib/permissions";
 import { ConfirmDialog } from "@/components/detail";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import { PermissionsGrid } from "@/components/permissions-grid";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,9 +30,14 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
-import { type MockUser, userLabel } from "@/lib/mock-data";
+import { type User } from "@/lib/types";
+
+function userLabel(user: User): string {
+  return user.displayName || user.username;
+}
 
 /** Password is required on create, and only length-checked on edit when typed. */
 const userSchema = (editing: boolean) =>
@@ -43,36 +60,172 @@ const userSchema = (editing: boolean) =>
 
 type UserValues = z.infer<ReturnType<typeof userSchema>>;
 
-export function UserEditor({ user }: { user?: MockUser }) {
-  const editing = user !== undefined;
+export function UserEditor({ userId }: { userId?: string } = {}) {
+  const editing = userId !== undefined;
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const {
+    data: user,
+    isPending,
+    error,
+  } = useQuery({
+    queryKey: ["users", userId],
+    queryFn: async () => {
+      try {
+        const result = await getUser(userId!);
+        if (!result.ok) {
+          console.error("Failed to load user:", result.error);
+          throw new Error(result.error || "Failed to load user");
+        }
+        if (!result.data) {
+          throw new Error("User not found");
+        }
+        return result.data;
+      } catch (err) {
+        console.error("User editor error:", err);
+        throw err;
+      }
+    },
+    enabled: editing,
+    retry: false,
+  });
+
+  const {
+    data: userPerms = [],
+  } = useQuery({
+    queryKey: ["users", userId, "permissions"],
+    queryFn: async () => {
+      try {
+        const result = await getUserPermissions(userId!);
+        if (!result.ok) {
+          console.error("Failed to load permissions:", result.error);
+          return [];
+        }
+        return result.data;
+      } catch (err) {
+        console.error("Permissions fetch error:", err);
+        return [];
+      }
+    },
+    enabled: editing,
+    retry: false,
+  });
+
   const schema = userSchema(editing);
+  const userData = user ?? ({ username: "" } as User);
+
+  // Convert user permissions to permKey format: "perm.resource.action"
+  const permissionKeys = userPerms.map(
+    (p) => `perm.${p.resource}.${p.action}`
+  );
 
   const form = useForm({
     defaultValues: {
-      username: user?.username ?? "",
+      username: userData.username ?? "",
       password: "",
-      email: user?.email ?? "",
-      displayName: user?.displayName ?? "",
-      isAdmin: user?.isAdmin ?? false,
-      isActive: user?.isActive ?? true,
-      permissions: user?.permissions ?? [],
+      email: userData.email ?? "",
+      displayName: userData.displayName ?? "",
+      isAdmin: userData.isAdmin ?? false,
+      isActive: userData.isActive ?? true,
+      permissions: permissionKeys,
     } as UserValues,
     validators: { onBlur: schema, onSubmit: schema },
     onSubmit: async ({ value }) => {
-      // ponytail: no server action yet — §6.5 useMutation replaces this.
-      console.log("user payload", value);
-      toast.add({
-        title: editing ? "User updated" : "User validated",
-        description: `${value.username} saved. Payload logged to the console.`,
-      });
+      try {
+        let userId_: string;
+
+        if (editing) {
+          const result = await updateUser(userId!, {
+            username: value.username,
+            email: value.email,
+            displayName: value.displayName,
+            isAdmin: value.isAdmin,
+            isActive: value.isActive,
+          });
+          if (!result.ok) {
+            toast.add({
+              title: "Error updating user",
+              description: result.error || "Failed to update user",
+            });
+            return;
+          }
+          userId_ = userId!;
+        } else {
+          const result = await createUser({
+            username: value.username,
+            password: value.password,
+            email: value.email,
+            displayName: value.displayName,
+            isAdmin: value.isAdmin,
+            isActive: value.isActive,
+          });
+          if (!result.ok) {
+            toast.add({
+              title: "Error creating user",
+              description: result.error || "Failed to create user",
+            });
+            return;
+          }
+          userId_ = result.data.id;
+        }
+
+        // Parse permissions from "perm.resource.action" format to { resource, action }
+        const permissions = value.permissions
+          .map((perm) => {
+            const parts = perm.split(".");
+            if (parts.length !== 3 || parts[0] !== "perm") return null;
+            return { resource: parts[1] as Resource, action: parts[2] as Action };
+          })
+          .filter((p) => p !== null);
+
+        // Save permissions
+        const permResult = await updateUserPermissions(userId_, permissions);
+        if (!permResult.ok) {
+          toast.add({
+            title: "Warning: Permissions not saved",
+            description: permResult.error || "Failed to save permissions",
+          });
+        }
+
+        toast.add({
+          title: editing ? "User updated" : "User created",
+          description: `${value.username} has been saved.`,
+        });
+
+        await queryClient.invalidateQueries({
+          queryKey: ["users"],
+        });
+
+        router.push("/users");
+      } catch (err) {
+        console.error("Form submission error:", err);
+        toast.add({
+          title: "Error",
+          description: (err as Error).message || "Something went wrong",
+        });
+      }
     },
   });
+
+  // Loading and error states must come after all hooks
+  if (editing && isPending) {
+    return <Skeleton className="h-96 w-full rounded-xl" />;
+  }
+
+  if (editing && error) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>{(error as Error).message}</AlertTitle>
+      </Alert>
+    );
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">
-          {editing ? `Edit ${userLabel(user)}` : "New User"}
+          {editing && user ? `Edit ${userLabel(user)}` : "New User"}
         </h1>
         <div className="flex gap-2">
           <Button variant="outline" render={<Link href="/users" />}>
@@ -257,12 +410,34 @@ export function UserEditor({ user }: { user?: MockUser }) {
             title="Delete user"
             description="Are you sure you want to delete this user? This action cannot be undone."
             actionLabel="Delete User"
-            onConfirm={() =>
-              toast.add({
-                title: `${userLabel(user)} deleted`,
-                description: "Mock only — nothing left the browser.",
-              })
-            }
+            onConfirm={async () => {
+              try {
+                const result = await deleteUser(userId!);
+                if (!result.ok) {
+                  toast.add({
+                    title: "Error deleting user",
+                    description: result.error || "Failed to delete user",
+                  });
+                  return;
+                }
+
+                toast.add({
+                  title: `${user ? userLabel(user) : "User"} deleted`,
+                });
+
+                await queryClient.invalidateQueries({
+                  queryKey: ["users"],
+                });
+
+                router.push("/users");
+              } catch (err) {
+                console.error("Delete error:", err);
+                toast.add({
+                  title: "Error",
+                  description: (err as Error).message || "Failed to delete user",
+                });
+              }
+            }}
             trigger={
               <Button
                 variant="outline"
