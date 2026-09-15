@@ -22,7 +22,11 @@ export function LogoutItem() {
     >
       {/* A button sizes to its content even as a flex item, so it needs w-full
           to match the plain <div> items around it. */}
-      <DropdownMenuItem className="w-full" render={<button type="submit" />}>
+      <DropdownMenuItem
+        className="w-full"
+        render={<button type="submit" />}
+        nativeButton={true}
+      >
         <LogOut className="size-4" />
         Logout
       </DropdownMenuItem>

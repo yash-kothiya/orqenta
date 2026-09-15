@@ -122,14 +122,14 @@ export function SiteHeader({ user = null }: { user?: SessionUser | null }) {
               render={
                 <button
                   type="button"
-                  className="flex items-center gap-2 whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
+                  className="flex items-center gap-2 whitespace-nowrap rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 />
               }
             >
               <Ellipsis className="size-4" />
               More
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuContent align="end" className="w-40" sideOffset={8}>
               {moreLinks.map(({ href, label, icon: Icon }) => (
                 <DropdownMenuItem key={href} render={<Link href={href} />}>
                   <Icon className="size-4" />

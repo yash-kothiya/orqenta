@@ -24,6 +24,7 @@ import {
   updateSettings,
   updateTaxDefinition,
 } from "@/app/(app)/settings/actions";
+import { listTemplates } from "@/app/(app)/templates/actions";
 import { ColorPicker } from "@/components/color-picker";
 import { ItemManager, type ManagedRow } from "@/components/item-manager";
 import { type Option, SelectInput } from "@/components/select-input";
@@ -45,7 +46,6 @@ import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { unwrap } from "@/lib/action-result";
-import { TEMPLATES } from "@/lib/mock-data";
 import { invalidate, type MutatedResource } from "@/lib/query-invalidation";
 import {
   type BoolKey,
@@ -116,10 +116,8 @@ export function SettingsForm({ canEdit }: { canEdit: boolean }) {
   const params = useSearchParams();
   const queryClient = useQueryClient();
 
-  // §10.15: the Templates entry only appears once templates exist.
-  const sections = SECTIONS.filter(
-    (s) => s.id !== "templates" || TEMPLATES.length > 0,
-  );
+  // §10.15: the Templates section is always shown; TemplateList handles empty state
+  const sections = SECTIONS;
   const active =
     sections.find((s) => s.id === params.get("section")) ?? sections[0];
 
@@ -129,6 +127,11 @@ export function SettingsForm({ canEdit }: { canEdit: boolean }) {
   const { data: stored } = useQuery({
     queryKey: ["settings", "all"],
     queryFn: () => getSettings().then(unwrap),
+  });
+
+  const { data: templates = [] } = useQuery({
+    queryKey: ["templates", "list"],
+    queryFn: () => listTemplates().then(unwrap),
   });
 
   // The panel is an uncontrolled draft, so the server copy seeds it once it
@@ -331,7 +334,7 @@ export function SettingsForm({ canEdit }: { canEdit: boolean }) {
                 }
                 options={[
                   { value: "default", label: "Default" },
-                  ...TEMPLATES.map((t) => ({ value: t.id, label: t.name })),
+                  ...templates.map((t) => ({ value: t.id, label: t.name })),
                 ]}
               />
             </Field>
