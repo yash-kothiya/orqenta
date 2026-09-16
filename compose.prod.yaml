@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: orqenta
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d orqenta"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # One-off: runs drizzle-kit migrate (a devDependency, so it uses the
+  # full-deps `build` stage, not the prod-only `web` image) then exits.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      target: build
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/orqenta
+    command: pnpm db:migrate
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/orqenta
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  pgdata:

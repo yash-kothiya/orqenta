@@ -1,0 +1,30 @@
+FROM node:22-alpine AS base
+RUN corepack enable
+WORKDIR /app
+# Puppeteer only needs a browser binary, not its own ~170MB Chromium download.
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+
+FROM deps AS build
+COPY . .
+# env.ts validates eagerly at import, and `next build` imports every route to
+# collect page data — these are never used for a real connection at build
+# time, real values come from env_file/environment at container runtime.
+RUN DATABASE_URL=postgres://placeholder ADMIN_USER=placeholder \
+    ADMIN_PASS=placeholder JWT_SECRET=placeholder pnpm build
+
+FROM base AS runner
+ENV NODE_ENV=production
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+RUN apk add --no-cache chromium
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile --prod
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/public ./public
+
+EXPOSE 3001
+CMD ["pnpm", "start"]
