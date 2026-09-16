@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { listInvoices } from "@/app/(app)/invoices/actions";
 import { StatusBadge } from "@/components/status-badge";
+import { IfPermitted } from "@/components/permission-gated-action";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -146,9 +147,11 @@ export function InvoiceList() {
         <Header />
         <Card className="items-center gap-4 py-12 text-center">
           <p className="text-muted-foreground">No invoices found</p>
-          <Button render={<Link href="/invoices/new" />}>
-            Create your first invoice
-          </Button>
+          <IfPermitted resource="invoices" action="create">
+            <Button render={<Link href="/invoices/new" />}>
+              Create your first invoice
+            </Button>
+          </IfPermitted>
         </Card>
       </div>
     );
@@ -258,13 +261,15 @@ function Header() {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h1 className="text-2xl font-semibold">Invoices</h1>
-      <Button
-        className="w-full sm:w-auto"
-        render={<Link href="/invoices/new" />}
-      >
-        <SquarePen className="size-4" />
-        Create Invoice
-      </Button>
+      <IfPermitted resource="invoices" action="create">
+        <Button
+          className="w-full sm:w-auto"
+          render={<Link href="/invoices/new" />}
+        >
+          <SquarePen className="size-4" />
+          Create Invoice
+        </Button>
+      </IfPermitted>
     </div>
   );
 }

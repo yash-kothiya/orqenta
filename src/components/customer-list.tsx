@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
 import Link from "next/link";
 import { listCustomers } from "@/app/(app)/customers/actions";
+import { IfPermitted } from "@/components/permission-gated-action";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -55,9 +56,11 @@ export function CustomerList() {
         <Header />
         <Card className="items-center gap-4 py-12 text-center">
           <p className="text-muted-foreground">No customers yet.</p>
-          <Button render={<Link href="/customers/new" />}>
-            Create your first customer
-          </Button>
+          <IfPermitted resource="customers" action="create">
+            <Button render={<Link href="/customers/new" />}>
+              Create your first customer
+            </Button>
+          </IfPermitted>
         </Card>
       </div>
     );
@@ -135,13 +138,15 @@ function Header() {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h1 className="text-2xl font-semibold">Customers</h1>
-      <Button
-        className="w-full sm:w-auto"
-        render={<Link href="/customers/new" />}
-      >
-        <UserPlus className="size-4" />
-        New Customer
-      </Button>
+      <IfPermitted resource="customers" action="create">
+        <Button
+          className="w-full sm:w-auto"
+          render={<Link href="/customers/new" />}
+        >
+          <UserPlus className="size-4" />
+          New Customer
+        </Button>
+      </IfPermitted>
     </div>
   );
 }

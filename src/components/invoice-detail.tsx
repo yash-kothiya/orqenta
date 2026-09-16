@@ -23,7 +23,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { getInvoice } from "@/app/(app)/invoices/actions";
 import { ConfirmDialog, Detail } from "@/components/detail";
+import { IfPermitted } from "@/components/permission-gated-action";
 import { StatusBadge } from "@/components/status-badge";
+import { usePermission } from "@/hooks/use-permission";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -77,6 +79,7 @@ const needsServer = (what: string) => () =>
 
 export function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
   const router = useRouter();
+  const { can } = usePermission();
 
   const {
     data: invoice,
@@ -176,29 +179,35 @@ export function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            render={<Link href={`/invoices/${invoiceData.id}/edit`} />}
-          >
-            <Pencil className="size-4" />
-            Edit
-          </Button>
+          <IfPermitted resource="invoices" action="update">
+            <Button
+              variant="outline"
+              render={<Link href={`/invoices/${invoiceData.id}/edit`} />}
+            >
+              <Pencil className="size-4" />
+              Edit
+            </Button>
+          </IfPermitted>
 
           {status === "draft" && (
-            <Button
-              title="Make public and mark as sent"
-              onClick={() => move("sent")}
-            >
-              <Upload className="size-4" />
-              Publish
-            </Button>
+            <IfPermitted resource="invoices" action="publish">
+              <Button
+                title="Make public and mark as sent"
+                onClick={() => move("sent")}
+              >
+                <Upload className="size-4" />
+                Publish
+              </Button>
+            </IfPermitted>
           )}
 
           {status === "paid" && (
-            <Button variant="secondary" onClick={() => move("complete")}>
-              <CheckCircle className="size-4" />
-              Mark as Complete
-            </Button>
+            <IfPermitted resource="invoices" action="update">
+              <Button variant="secondary" onClick={() => move("complete")}>
+                <CheckCircle className="size-4" />
+                Mark as Complete
+              </Button>
+            </IfPermitted>
           )}
 
           {(status === "sent" || status === "overdue") && (
@@ -227,19 +236,19 @@ export function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
                 Download XML
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {(status === "sent" || status === "overdue") && (
+              {(status === "sent" || status === "overdue") && can("invoices", "update") && (
                 <DropdownMenuItem onClick={() => move("draft")}>
                   <ShieldOff className="size-4" />
                   Unpublish
                 </DropdownMenuItem>
               )}
-              {status === "paid" && (
+              {status === "paid" && can("invoices", "update") && (
                 <DropdownMenuItem onClick={() => move("complete")}>
                   <CheckCircle className="size-4" />
                   Mark as Complete
                 </DropdownMenuItem>
               )}
-              {status === "draft" && (
+              {status === "draft" && can("invoices", "publish") && (
                 <DropdownMenuItem onClick={() => move("sent")}>
                   <Send className="size-4" />
                   Mark as Sent
@@ -249,31 +258,35 @@ export function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
           </DropdownMenu>
 
           {(status === "sent" || status === "overdue") && (
-            <ConfirmDialog
-              title="Void this invoice?"
-              description="A voided invoice stays on record but is no longer payable."
-              actionLabel="Void"
-              trigger={
-                <Button variant="outline" className="text-amber-600">
-                  <Ban className="size-4" />
-                  Void
-                </Button>
-              }
-              onConfirm={() => move("voided")}
-            />
+            <IfPermitted resource="invoices" action="void">
+              <ConfirmDialog
+                title="Void this invoice?"
+                description="A voided invoice stays on record but is no longer payable."
+                actionLabel="Void"
+                trigger={
+                  <Button variant="outline" className="text-amber-600">
+                    <Ban className="size-4" />
+                    Void
+                  </Button>
+                }
+                onConfirm={() => move("voided")}
+              />
+            </IfPermitted>
           )}
 
           {/* ponytail: the spec puts Delete inside More — a dialog trigger nested
               in a menu item fights Base UI, so it sits beside it like on every
               other detail page. */}
-          <ConfirmDialog
-            title="Delete invoice"
-            description="Delete this invoice? This cannot be undone."
-            onConfirm={() => {
-              toast.add({ title: `${invoiceData.invoiceNumber} deleted` });
-              router.push("/invoices");
-            }}
-          />
+          <IfPermitted resource="invoices" action="delete">
+            <ConfirmDialog
+              title="Delete invoice"
+              description="Delete this invoice? This cannot be undone."
+              onConfirm={() => {
+                toast.add({ title: `${invoiceData.invoiceNumber} deleted` });
+                router.push("/invoices");
+              }}
+            />
+          </IfPermitted>
         </div>
       </div>
 

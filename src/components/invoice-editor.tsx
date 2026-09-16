@@ -11,6 +11,7 @@ import { listProducts } from "@/app/(app)/products/actions";
 import { listTaxDefinitions } from "@/app/(app)/settings/actions";
 import { DatePicker } from "@/components/date-picker";
 import { type Option, SelectInput } from "@/components/select-input";
+import { IfPermitted } from "@/components/permission-gated-action";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -354,10 +355,25 @@ export function InvoiceEditor({ invoiceId }: { invoiceId?: string } = {}) {
           </Button>
           <form.Subscribe selector={(s) => s.isSubmitting}>
             {(isSubmitting) => (
-              <Button type="submit" form="invoice-form" disabled={isSubmitting}>
-                <Save className="size-4" />
-                Save
-              </Button>
+              <IfPermitted
+                resource="invoices"
+                action={editing ? "update" : "create"}
+                fallback={
+                  <Button type="submit" form="invoice-form" disabled>
+                    <Save className="size-4" />
+                    Save
+                  </Button>
+                }
+              >
+                <Button
+                  type="submit"
+                  form="invoice-form"
+                  disabled={isSubmitting}
+                >
+                  <Save className="size-4" />
+                  Save
+                </Button>
+              </IfPermitted>
             )}
           </form.Subscribe>
         </div>

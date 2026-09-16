@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteCustomer } from "@/app/(app)/customers/actions";
 import { ConfirmDialog, Detail } from "@/components/detail";
+import { IfPermitted } from "@/components/permission-gated-action";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,18 +34,22 @@ export function CustomerDetail({ customer }: { customer: Customer }) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Customer {customer.name}</h1>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            render={<Link href={`/customers/${customer.id}/edit`} />}
-          >
-            <Pencil className="size-4" />
-            Edit
-          </Button>
-          <ConfirmDialog
-            title="Delete customer"
-            description="Are you sure you want to delete this customer? This cannot be undone."
-            onConfirm={() => remove.mutate()}
-          />
+          <IfPermitted resource="customers" action="update">
+            <Button
+              variant="outline"
+              render={<Link href={`/customers/${customer.id}/edit`} />}
+            >
+              <Pencil className="size-4" />
+              Edit
+            </Button>
+          </IfPermitted>
+          <IfPermitted resource="customers" action="delete">
+            <ConfirmDialog
+              title="Delete customer"
+              description="Are you sure you want to delete this customer? This cannot be undone."
+              onConfirm={() => remove.mutate()}
+            />
+          </IfPermitted>
         </div>
       </div>
 

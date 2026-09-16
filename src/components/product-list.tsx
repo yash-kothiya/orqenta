@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PackagePlus } from "lucide-react";
 import Link from "next/link";
 import { listProducts } from "@/app/(app)/products/actions";
+import { IfPermitted } from "@/components/permission-gated-action";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -55,9 +56,11 @@ export function ProductList() {
         <Header />
         <Card className="items-center gap-4 py-12 text-center">
           <p className="text-muted-foreground">No products yet.</p>
-          <Button render={<Link href="/products/new" />}>
-            Create your first product
-          </Button>
+          <IfPermitted resource="products" action="create">
+            <Button render={<Link href="/products/new" />}>
+              Create your first product
+            </Button>
+          </IfPermitted>
         </Card>
       </div>
     );
@@ -133,13 +136,15 @@ function Header() {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h1 className="text-2xl font-semibold">Products</h1>
-      <Button
-        className="w-full sm:w-auto"
-        render={<Link href="/products/new" />}
-      >
-        <PackagePlus className="size-4" />
-        New Product
-      </Button>
+      <IfPermitted resource="products" action="create">
+        <Button
+          className="w-full sm:w-auto"
+          render={<Link href="/products/new" />}
+        >
+          <PackagePlus className="size-4" />
+          New Product
+        </Button>
+      </IfPermitted>
     </div>
   );
 }

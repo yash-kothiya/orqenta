@@ -10,6 +10,7 @@ import {
   createCustomer,
   updateCustomer,
 } from "@/app/(app)/customers/actions";
+import { IfPermitted } from "@/components/permission-gated-action";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -128,10 +129,24 @@ export function CustomerEditor({ customer }: { customer?: Customer }) {
           >
             Cancel
           </Button>
-          <Button type="submit" form="customer-form" disabled={save.isPending}>
-            {save.isPending && <Spinner />}
-            {editing ? "Save Changes" : "Create Customer"}
-          </Button>
+          <IfPermitted
+            resource="customers"
+            action={editing ? "update" : "create"}
+            fallback={
+              <Button type="submit" form="customer-form" disabled>
+                {editing ? "Save Changes" : "Create Customer"}
+              </Button>
+            }
+          >
+            <Button
+              type="submit"
+              form="customer-form"
+              disabled={save.isPending}
+            >
+              {save.isPending && <Spinner />}
+              {editing ? "Save Changes" : "Create Customer"}
+            </Button>
+          </IfPermitted>
         </div>
       </div>
 

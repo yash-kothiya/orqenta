@@ -16,6 +16,8 @@ import {
 } from "@/app/(app)/users/actions";
 import { type Action, type Resource } from "@/lib/permissions";
 import { ConfirmDialog } from "@/components/detail";
+import { IfPermitted } from "@/components/permission-gated-action";
+import { usePermission } from "@/hooks/use-permission";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { PermissionsGrid } from "@/components/permissions-grid";
 import { Button } from "@/components/ui/button";
@@ -64,6 +66,8 @@ export function UserEditor({ userId }: { userId?: string } = {}) {
   const editing = userId !== undefined;
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { can } = usePermission();
+  const canEdit = can("users", "update");
 
   const {
     data: user,
@@ -227,19 +231,25 @@ export function UserEditor({ userId }: { userId?: string } = {}) {
         <h1 className="text-2xl font-semibold">
           {editing && user ? `Edit ${userLabel(user)}` : "New User"}
         </h1>
-        <div className="flex gap-2">
-          <Button variant="outline" render={<Link href="/users" />}>
-            Cancel
-          </Button>
-          <form.Subscribe selector={(s) => s.isSubmitting}>
-            {(isSubmitting) => (
-              <Button type="submit" form="user-form" disabled={isSubmitting}>
-                <Save className="size-4" />
-                Save
-              </Button>
-            )}
-          </form.Subscribe>
-        </div>
+        <IfPermitted resource="users" action={editing ? "update" : "create"}>
+          <div className="flex gap-2">
+            <Button variant="outline" render={<Link href="/users" />}>
+              Cancel
+            </Button>
+            <form.Subscribe selector={(s) => s.isSubmitting}>
+              {(isSubmitting) => (
+                <Button
+                  type="submit"
+                  form="user-form"
+                  disabled={isSubmitting}
+                >
+                  <Save className="size-4" />
+                  Save
+                </Button>
+              )}
+            </form.Subscribe>
+          </div>
+        </IfPermitted>
       </div>
 
       <form
@@ -265,6 +275,7 @@ export function UserEditor({ userId }: { userId?: string } = {}) {
                     onBlur={field.handleBlur}
                     onChange={(e) => field.handleChange(e.target.value)}
                     aria-invalid={invalid}
+                    disabled={!canEdit}
                   />
                   {invalid && <FieldError errors={field.state.meta.errors} />}
                 </Field>
@@ -293,6 +304,7 @@ export function UserEditor({ userId }: { userId?: string } = {}) {
                     onBlur={field.handleBlur}
                     onChange={(e) => field.handleChange(e.target.value)}
                     aria-invalid={invalid}
+                    disabled={!canEdit}
                   />
                   {invalid ? (
                     <FieldError errors={field.state.meta.errors} />
@@ -319,6 +331,7 @@ export function UserEditor({ userId }: { userId?: string } = {}) {
                     value={field.state.value}
                     onBlur={field.handleBlur}
                     onChange={(e) => field.handleChange(e.target.value)}
+                    disabled={!canEdit}
                   />
                 </Field>
               )}
@@ -335,6 +348,7 @@ export function UserEditor({ userId }: { userId?: string } = {}) {
                     value={field.state.value}
                     onBlur={field.handleBlur}
                     onChange={(e) => field.handleChange(e.target.value)}
+                    disabled={!canEdit}
                   />
                 </Field>
               )}
@@ -356,7 +370,10 @@ export function UserEditor({ userId }: { userId?: string } = {}) {
                   id={field.name}
                   name={field.name}
                   checked={field.state.value}
-                  onCheckedChange={field.handleChange}
+                  onCheckedChange={(checked) => {
+                    if (canEdit) field.handleChange(checked);
+                  }}
+                  disabled={!canEdit}
                 />
               </Field>
             )}
@@ -376,7 +393,10 @@ export function UserEditor({ userId }: { userId?: string } = {}) {
                     id={field.name}
                     name={field.name}
                     checked={field.state.value}
-                    onCheckedChange={field.handleChange}
+                    onCheckedChange={(checked) => {
+                      if (canEdit) field.handleChange(checked);
+                    }}
+                    disabled={!canEdit}
                   />
                 </Field>
               )}
@@ -395,7 +415,10 @@ export function UserEditor({ userId }: { userId?: string } = {}) {
               {(field) => (
                 <PermissionsGrid
                   value={field.state.value}
-                  onChange={field.handleChange}
+                  onChange={(value) => {
+                    if (canEdit) field.handleChange(value);
+                  }}
+                  disabled={!canEdit}
                 />
               )}
             </form.Field>
@@ -406,48 +429,50 @@ export function UserEditor({ userId }: { userId?: string } = {}) {
       {editing && (
         <>
           <Separator />
-          <ConfirmDialog
-            title="Delete user"
-            description="Are you sure you want to delete this user? This action cannot be undone."
-            actionLabel="Delete User"
-            onConfirm={async () => {
-              try {
-                const result = await deleteUser(userId!);
-                if (!result.ok) {
+          <IfPermitted resource="users" action="delete">
+            <ConfirmDialog
+              title="Delete user"
+              description="Are you sure you want to delete this user? This action cannot be undone."
+              actionLabel="Delete User"
+              onConfirm={async () => {
+                try {
+                  const result = await deleteUser(userId!);
+                  if (!result.ok) {
+                    toast.add({
+                      title: "Error deleting user",
+                      description: result.error || "Failed to delete user",
+                    });
+                    return;
+                  }
+
                   toast.add({
-                    title: "Error deleting user",
-                    description: result.error || "Failed to delete user",
+                    title: `${user ? userLabel(user) : "User"} deleted`,
                   });
-                  return;
+
+                  await queryClient.invalidateQueries({
+                    queryKey: ["users"],
+                  });
+
+                  router.push("/users");
+                } catch (err) {
+                  console.error("Delete error:", err);
+                  toast.add({
+                    title: "Error",
+                    description: (err as Error).message || "Failed to delete user",
+                  });
                 }
-
-                toast.add({
-                  title: `${user ? userLabel(user) : "User"} deleted`,
-                });
-
-                await queryClient.invalidateQueries({
-                  queryKey: ["users"],
-                });
-
-                router.push("/users");
-              } catch (err) {
-                console.error("Delete error:", err);
-                toast.add({
-                  title: "Error",
-                  description: (err as Error).message || "Failed to delete user",
-                });
+              }}
+              trigger={
+                <Button
+                  variant="outline"
+                  className="w-fit text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="size-4" />
+                  Delete User
+                </Button>
               }
-            }}
-            trigger={
-              <Button
-                variant="outline"
-                className="w-fit text-destructive hover:text-destructive"
-              >
-                <Trash2 className="size-4" />
-                Delete User
-              </Button>
-            }
-          />
+            />
+          </IfPermitted>
         </>
       )}
     </div>

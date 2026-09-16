@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
 import Link from "next/link";
 import { listUsers } from "@/app/(app)/users/actions";
+import { IfPermitted } from "@/components/permission-gated-action";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,11 @@ export function UserList() {
         <Header />
         <Card className="items-center gap-4 py-12 text-center">
           <p className="text-muted-foreground">No users found.</p>
-          <Button render={<Link href="/users/new" />}>Create a user</Button>
+          <IfPermitted resource="users" action="create">
+            <Button render={<Link href="/users/new" />}>
+              Create a user
+            </Button>
+          </IfPermitted>
         </Card>
       </div>
     );
@@ -149,10 +154,15 @@ function Header() {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h1 className="text-2xl font-semibold">Users</h1>
-      <Button className="w-full sm:w-auto" render={<Link href="/users/new" />}>
-        <UserPlus className="size-4" />
-        New User
-      </Button>
+      <IfPermitted resource="users" action="create">
+        <Button
+          className="w-full sm:w-auto"
+          render={<Link href="/users/new" />}
+        >
+          <UserPlus className="size-4" />
+          New User
+        </Button>
+      </IfPermitted>
     </div>
   );
 }

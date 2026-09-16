@@ -15,6 +15,7 @@ import {
 } from "@/app/(app)/products/actions";
 import { listTaxDefinitions } from "@/app/(app)/settings/actions";
 import { type Option, SelectInput } from "@/components/select-input";
+import { IfPermitted } from "@/components/permission-gated-action";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -127,10 +128,25 @@ export function ProductEditor({ product }: { product?: Product }) {
           >
             Cancel
           </Button>
-          <Button type="submit" form="product-form" disabled={save.isPending}>
-            {save.isPending ? <Spinner /> : <Save className="size-4" />}
-            Save
-          </Button>
+          <IfPermitted
+            resource="products"
+            action={editing ? "update" : "create"}
+            fallback={
+              <Button type="submit" form="product-form" disabled>
+                <Save className="size-4" />
+                Save
+              </Button>
+            }
+          >
+            <Button
+              type="submit"
+              form="product-form"
+              disabled={save.isPending}
+            >
+              {save.isPending ? <Spinner /> : <Save className="size-4" />}
+              Save
+            </Button>
+          </IfPermitted>
         </div>
       </div>
 

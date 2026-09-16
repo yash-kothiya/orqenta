@@ -12,6 +12,8 @@ import {
 } from "@/app/(app)/products/actions";
 import { listTaxDefinitions } from "@/app/(app)/settings/actions";
 import { ConfirmDialog, Detail } from "@/components/detail";
+import { IfPermitted } from "@/components/permission-gated-action";
+import { usePermission } from "@/hooks/use-permission";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,7 @@ const codeName = (
 export function ProductDetail({ product }: { product: Product }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { can } = usePermission();
 
   const { data: units = [] } = useQuery({
     queryKey: ["product_units", "list"],
@@ -74,15 +77,17 @@ export function ProductDetail({ product }: { product: Product }) {
           {!isActive && <Badge variant="secondary">Inactive</Badge>}
         </h1>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            render={<Link href={`/products/${product.id}/edit`} />}
-          >
-            <Pencil className="size-4" />
-            Edit
-          </Button>
+          <IfPermitted resource="products" action="update">
+            <Button
+              variant="outline"
+              render={<Link href={`/products/${product.id}/edit`} />}
+            >
+              <Pencil className="size-4" />
+              Edit
+            </Button>
+          </IfPermitted>
 
-          {!isActive && (
+          {!isActive && can("products", "update") && (
             <Button
               variant="secondary"
               disabled={restore.isPending}
@@ -93,11 +98,13 @@ export function ProductDetail({ product }: { product: Product }) {
             </Button>
           )}
 
-          <ConfirmDialog
-            title="Delete product"
-            description="Are you sure you want to delete this product?"
-            onConfirm={() => remove.mutate()}
-          />
+          <IfPermitted resource="products" action="delete">
+            <ConfirmDialog
+              title="Delete product"
+              description="Are you sure you want to delete this product?"
+              onConfirm={() => remove.mutate()}
+            />
+          </IfPermitted>
         </div>
       </div>
 

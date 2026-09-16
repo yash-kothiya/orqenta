@@ -14,6 +14,8 @@ import {
 } from "@/app/(app)/templates/actions";
 import { TEMPLATE_TYPES } from "@/lib/types";
 import { ConfirmDialog } from "@/components/detail";
+import { IfPermitted } from "@/components/permission-gated-action";
+import { usePermission } from "@/hooks/use-permission";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,6 +55,8 @@ export function TemplateEditor({ templateId }: { templateId?: string } = {}) {
   const editing = templateId !== undefined;
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { can } = usePermission();
+  const canEdit = can("templates", "update");
 
   const {
     data: template,
@@ -150,19 +154,25 @@ export function TemplateEditor({ templateId }: { templateId?: string } = {}) {
         <h1 className="text-2xl font-semibold">
           {editing ? `Edit ${templateData.name}` : "New Template"}
         </h1>
-        <div className="flex gap-2">
-          <Button variant="outline" render={<Link href="/templates" />}>
-            Cancel
-          </Button>
-          <form.Subscribe selector={(s) => s.isSubmitting}>
-            {(isSubmitting) => (
-              <Button type="submit" form="template-form" disabled={isSubmitting}>
-                <Save className="size-4" />
-                Save
-              </Button>
-            )}
-          </form.Subscribe>
-        </div>
+        <IfPermitted resource="templates" action={editing ? "update" : "create"}>
+          <div className="flex gap-2">
+            <Button variant="outline" render={<Link href="/templates" />}>
+              Cancel
+            </Button>
+            <form.Subscribe selector={(s) => s.isSubmitting}>
+              {(isSubmitting) => (
+                <Button
+                  type="submit"
+                  form="template-form"
+                  disabled={isSubmitting}
+                >
+                  <Save className="size-4" />
+                  Save
+                </Button>
+              )}
+            </form.Subscribe>
+          </div>
+        </IfPermitted>
       </div>
 
       <form
@@ -187,6 +197,7 @@ export function TemplateEditor({ templateId }: { templateId?: string } = {}) {
                     onBlur={field.handleBlur}
                     onChange={(e) => field.handleChange(e.target.value)}
                     aria-invalid={invalid}
+                    disabled={!canEdit}
                   />
                   {invalid && <FieldError errors={field.state.meta.errors} />}
                 </Field>
@@ -202,8 +213,9 @@ export function TemplateEditor({ templateId }: { templateId?: string } = {}) {
                   <Select
                     value={field.state.value}
                     onValueChange={(value) => {
-                      if (value) field.handleChange(value as any);
+                      if (canEdit && value) field.handleChange(value as any);
                     }}
+                    disabled={!canEdit}
                   >
                     <SelectTrigger id={field.name}>
                       <SelectValue />
@@ -231,7 +243,10 @@ export function TemplateEditor({ templateId }: { templateId?: string } = {}) {
                     id={field.name}
                     name={field.name}
                     checked={field.state.value}
-                    onCheckedChange={field.handleChange}
+                    onCheckedChange={(checked) => {
+                      if (canEdit) field.handleChange(checked);
+                    }}
+                    disabled={!canEdit}
                   />
                 </Field>
               )}
@@ -260,6 +275,7 @@ export function TemplateEditor({ templateId }: { templateId?: string } = {}) {
                       onChange={(e) => field.handleChange(e.target.value)}
                       aria-invalid={invalid}
                       className="font-mono text-sm"
+                      disabled={!canEdit}
                     />
                     {invalid && <FieldError errors={field.state.meta.errors} />}
                   </Field>
@@ -277,48 +293,50 @@ export function TemplateEditor({ templateId }: { templateId?: string } = {}) {
       {editing && (
         <>
           <Separator />
-          <ConfirmDialog
-            title="Delete template"
-            description="Are you sure you want to delete this template? This action cannot be undone."
-            actionLabel="Delete Template"
-            onConfirm={async () => {
-              try {
-                const result = await deleteTemplate(templateId!);
-                if (!result.ok) {
+          <IfPermitted resource="templates" action="delete">
+            <ConfirmDialog
+              title="Delete template"
+              description="Are you sure you want to delete this template? This action cannot be undone."
+              actionLabel="Delete Template"
+              onConfirm={async () => {
+                try {
+                  const result = await deleteTemplate(templateId!);
+                  if (!result.ok) {
+                    toast.add({
+                      title: "Error deleting template",
+                      description: result.error || "Failed to delete template",
+                    });
+                    return;
+                  }
+
                   toast.add({
-                    title: "Error deleting template",
-                    description: result.error || "Failed to delete template",
+                    title: `${templateData.name} deleted`,
                   });
-                  return;
+
+                  await queryClient.invalidateQueries({
+                    queryKey: ["templates"],
+                  });
+
+                  router.push("/templates");
+                } catch (err) {
+                  console.error("Delete error:", err);
+                  toast.add({
+                    title: "Error",
+                    description: (err as Error).message || "Failed to delete template",
+                  });
                 }
-
-                toast.add({
-                  title: `${templateData.name} deleted`,
-                });
-
-                await queryClient.invalidateQueries({
-                  queryKey: ["templates"],
-                });
-
-                router.push("/templates");
-              } catch (err) {
-                console.error("Delete error:", err);
-                toast.add({
-                  title: "Error",
-                  description: (err as Error).message || "Failed to delete template",
-                });
+              }}
+              trigger={
+                <Button
+                  variant="outline"
+                  className="w-fit text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="size-4" />
+                  Delete Template
+                </Button>
               }
-            }}
-            trigger={
-              <Button
-                variant="outline"
-                className="w-fit text-destructive hover:text-destructive"
-              >
-                <Trash2 className="size-4" />
-                Delete Template
-              </Button>
-            }
-          />
+            />
+          </IfPermitted>
         </>
       )}
     </div>

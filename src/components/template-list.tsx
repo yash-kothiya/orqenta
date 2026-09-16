@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FilePlus } from "lucide-react";
 import Link from "next/link";
 import { listTemplates } from "@/app/(app)/templates/actions";
+import { IfPermitted } from "@/components/permission-gated-action";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -137,10 +138,15 @@ function Header() {
           Manage invoice HTML templates.
         </p>
       </div>
-      <Button className="w-full sm:w-auto" render={<Link href="/templates/new" />}>
-        <FilePlus className="size-4" />
-        New Template
-      </Button>
+      <IfPermitted resource="templates" action="create">
+        <Button
+          className="w-full sm:w-auto"
+          render={<Link href="/templates/new" />}
+        >
+          <FilePlus className="size-4" />
+          New Template
+        </Button>
+      </IfPermitted>
     </div>
   );
 }
