@@ -12,7 +12,7 @@ const pageResourceMap: Record<string, { resource: Resource; action: "read" | "cr
   "/settings": { resource: "settings", action: "read" },
 };
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Skip public routes
